@@ -1,0 +1,4 @@
+twilio
+numpy
+opencv-python
+watchdog
