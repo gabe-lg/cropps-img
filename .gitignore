@@ -1,3 +1,5 @@
 sms/env.cpp
 sms/main
 .env*
+.idea
+.venv

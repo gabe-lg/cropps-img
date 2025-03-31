@@ -6,25 +6,30 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Parameters
-WATCH_DIR = "./captured_images"  # Change to your image directory
+WATCH_DIR = "./CROPPS_Training_Dataset"  # Change to your image directory
 THRESHOLD = 1e7  # Adjust based on image intensity range
-PREFIX = "PLANT-CAPTURE-"
+PREFIX = ""
 
 def detect_brightness_total(image_path, threshold=THRESHOLD):
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(image_path)
+    hsv_img = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     
     if image is None:
         print(f"Error loading {image_path}")
         return False, None
 
     total_intensity = np.sum(image)
+    hue = np.min(abs(hsv_img[:, :, 0]-30))
     is_bright = total_intensity > threshold
+    is_yellow = hue < 100
 
     print(f"Processed: {image_path}")
+    print(f"Hue diff: {hue}")
+    print(f"Agitated: {is_yellow}")
     print(f"Total Intensity: {total_intensity}")
     print(f"Brightness exceeds threshold: {is_bright}\n")
 
-    return is_bright, total_intensity
+    return is_yellow, hue
 
 class ImageHandler(FileSystemEventHandler):
     def on_created(self, event):
