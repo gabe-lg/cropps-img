@@ -1,5 +1,7 @@
+**/__pycache__
 sms/env.cpp
 sms/main
 .env*
 .idea
 .venv
+*.png
