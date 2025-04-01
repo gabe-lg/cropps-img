@@ -1,15 +1,15 @@
 import os
 import dotenv
-dotenv.load_dotenv()
-
 
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
 from twilio.base.exceptions import TwilioException
 
+dotenv.load_dotenv()
 account_sid = os.environ["TWILIO_ACCOUNT_SID"]
 auth_token = os.environ["TWILIO_AUTH_TOKEN"]
 client = Client(account_sid, auth_token)
+
 
 def send_sms(to: str, from_: str, body: str) -> None:
     """
@@ -35,6 +35,7 @@ def send_sms(to: str, from_: str, body: str) -> None:
         print(f"TwilioRestException: {e}")
     except TwilioException as e:
         print(f"TwilioException: {e}")
+
 
 if __name__ == "__main__":
     to_number = "+18777804236"  # Replace with the recipient's number
