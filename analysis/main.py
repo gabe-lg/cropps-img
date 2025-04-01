@@ -10,7 +10,7 @@ from watchdog.events import FileSystemEventHandler
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" else "./CROPPS_Training_Dataset"
 PREFIX = ""
-SHOW_IMG = False
+SHOW_IMG = 0
 FAILED = 0
 
 # TOTAL INTENSITY
@@ -20,8 +20,8 @@ THRESHOLD_TOTAL_INTENSITY = 21000000
 THRESHOLD_MAX_INTENSITY = 100
 
 # BRIGHT PIXELS
-THRESHOLD_BRIGHT = 50
-THRESHOLD_NUM_BRIGHT = 10
+THRESHOLD_BRIGHT = 75
+THRESHOLD_NUM_BRIGHT = 50
 
 # BRIGHT PATCHES
 AREA_H = 50

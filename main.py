@@ -57,7 +57,6 @@ def print_deviceid():
 
 def set_exposure(exposure):
     microscope.Init()
-    # exposure = input("Enter exposure value for camera:")
     microscope.SetAutoExposure(DEVICE_INDEX, 0)
     microscope.SetExposureValue(DEVICE_INDEX, exposure)
     time.sleep(QUERY_TIME)
@@ -143,8 +142,7 @@ class captureTask(StoppableThread):
             time.sleep(2)
     
     def set_frame(self, frame):
-        if self.frame is None:
-            self.frame = frame
+        self.frame = frame
 
 def start_camera():
     """Starts camera, initializes variables for video preview, and listens for shortcut keys."""
@@ -160,7 +158,7 @@ def start_camera():
     recording = False
     video_writer = None
 
-    set_exposure(30_000)
+    set_exposure(5_000)
 
     while True:
         ret, frame = camera.read()
@@ -178,7 +176,8 @@ def start_camera():
         # Press '1' to print AMR value
         if key == ord('1'):
             print_amr()
-            set_exposure()
+            exposure = input("Enter exposure value for camera:")
+            set_exposure(int(exposure))
 
         # Press '2' to flash LEDs
         if key == ord('2'):
