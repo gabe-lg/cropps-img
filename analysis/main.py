@@ -1,14 +1,12 @@
-import heapq
-from collections import deque
-
 import cv2
 import matplotlib
 import numpy as np
-import time
 import os
 import platform
+import time
 
 from matplotlib import pyplot as plt
+from typing import Any, Callable, Optional, Union
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -16,45 +14,23 @@ from watchdog.events import FileSystemEventHandler
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
-PREFIX = ""
-SHOW_IMG = False
+SHOW_IMG = 0
 FAILED = 0
-
-# TOTAL INTENSITY
-THRESHOLD_TOTAL_INTENSITY = 21000000
+READ_DELAY = 1
 
 # BRIGHT PIXELS
 THRESHOLD_BRIGHT = 40
 THRESHOLD_NUM_BRIGHT = 7000
 
-# BRIGHT PATCHES
-AREA_H = 10
-
-AREA_V = 10
-THRESHOLD_PATCHES = 99
-READ_DELAY = 1
-
 # NORMALIZED INTENSITY
 THRESHOLD_NORMALIZED = 5
 THRESHOLD_NORMALIZED_TOTAL = 50000
-
-# LONGEST PATH
-THRESHOLD_PATH = 0
 
 
 ### END OF PARAMETERS ###
 
 
 # draw #
-def paint_pixel(frame, x, y, color):
-    assert isinstance(x, int) and isinstance(y, int)
-    assert 0 <= x < frame.shape[0] and 0 <= y < frame.shape[1]
-    assert isinstance(color, tuple) and len(color) == 3
-    assert (0 <= color[i] <= 255 for i in range(3))
-
-    frame[x, y] = color
-
-
 def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
     """
     Function to draw a square around the region with the most white pixels in the given frame.
@@ -87,80 +63,11 @@ def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
     return frame
 
 
-def paint_area(frame, threshold_value):
-    pixels = frame.max(axis=2) > THRESHOLD_BRIGHT
-    print(frame)
-    frame[pixels] = [255, 0, 0]
-
-
-def paint_path(frame, path, color, thickness):
-    """
-    Draws a thick line along a given path of pixel coordinates.
-
-    :param frame: OpenCV frame (image)
-    :param path: List of (x, y) tuples representing the path
-    :param color: BGR color tuple (default: red)
-    :param thickness: Line thickness
-    """
-
-    if len(path) < 2:
-        return frame  # No line to draw
-
-        # Convert (x, y) coordinates to NumPy array
-    path_array = np.array(path, dtype=np.int32)
-
-    # Draw a polyline connecting all points
-    cv2.polylines(frame, [path_array], isClosed=False, color=color,
-                  thickness=thickness)
-
-    return frame
-
-
-def longest_path(img):
-    binary_mask = (img > (np.max(img) * 0.9)).astype(np.uint8)
-    height, width = binary_mask.shape
-    directions = [(i, j) for j in range(-1, 2) for i in range(-1, 2)]
-    directions.remove((0, 0))
-
-    x_start, y_start = cv2.minMaxLoc(binary_mask)[3]
-    pq = []
-    heapq.heappush(pq, (
-        -binary_mask[x_start, y_start], (x_start, y_start), [(x_start,
-                                                              y_start)]))
-
-    # Visited set to prevent revisits
-    visited = set()
-
-    brightest_path = []
-
-    while pq:
-        neg_intensity, (x, y), path = heapq.heappop(
-            pq)  # Get highest-intensity pixel
-
-        if (x, y) in visited:
-            continue
-        visited.add((x, y))
-
-        # Store the best path found
-        if len(path) > len(brightest_path):
-            brightest_path = path
-
-        # Explore neighbors
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < height and 0 <= ny < width and (nx, ny) not in visited:
-                heapq.heappush(pq, (
-                    float(-binary_mask[nx, ny]), (nx, ny), path + [(nx,
-                                                                    ny)]))
-
-    return brightest_path
-
-
 def plot_histogram(img):
     """
     Displays a histogram of pixel intensities for a given image.
 
-    :param image_path: Path to the image file
+    :param img: Path to the image file
     """
     matplotlib.use('TkAgg')
     # Compute histogram (256 bins for intensity values 0-255)
@@ -177,7 +84,23 @@ def plot_histogram(img):
     plt.show()
 
 
-def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
+def _detect(image_path: str, mask: Optional[
+    Callable[[Union[cv2.Mat, np.ndarray[Any, np.dtype]]], cv2.Mat]],
+            extracted: Callable[
+                [Union[cv2.Mat, np.ndarray[Any, np.dtype]]], int],
+            criteria: Callable[[int], bool], desc: str) -> (bool, int):
+    """
+    Helper function that analyzes the image located in `image_path`
+    Args:
+        image_path:
+        mask:
+        extracted:
+        criteria:
+        desc:
+
+    Returns:
+
+    """
     time.sleep(READ_DELAY)
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(image_path)
@@ -193,12 +116,9 @@ def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
         cv2.destroyAllWindows()
     data = extracted(img)
     agitated = criteria(data)
-    print(f"[ANALYSIS] Processed: {image_path}")
     print(f"[ANALYSIS] {desc}: {data}")
-    print(f"[ANALYSIS] Agitated: {agitated}\n")
-    if SHOW_IMG and agitated:
+    if SHOW_IMG:
         paint_square(img2)
-        # paint_path(img2, longest_path(img), (255, 0, 0), 30)
         cv2.imshow("sample", img2)
         cv2.waitKey(0)
         cv2.destroyWindow("sample")
@@ -206,45 +126,11 @@ def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     return agitated, data
 
 
-def detect_brightness_total(image_path):
-    return _detect(image_path, None, np.sum,
-                   lambda extracted: extracted > THRESHOLD_TOTAL_INTENSITY,
-                   "Total intensity")
-
-
 def detect_yellow_num(image_path):
     return _detect(image_path, lambda img: img > THRESHOLD_BRIGHT,
                    lambda img: np.count_nonzero(img > THRESHOLD_BRIGHT),
                    lambda extracted: extracted > THRESHOLD_NUM_BRIGHT,
                    "Yellow pixels")
-
-
-def detect_patch_of_yellow(image_path):
-    def criterion(img):
-        yellow_pixels = cv2.inRange(img, np.array([0]),
-                                    np.array([THRESHOLD_BRIGHT])).tolist()
-        count = 0
-        for r in range(len(yellow_pixels)):
-            for c in range(len(yellow_pixels[0])):
-                if yellow_pixels[r][c]:
-                    count_pixel = 0
-                    for i in [n for n in range(-AREA_H // 2, AREA_H // 2)]:
-                        for j in [n for n in range(-AREA_V // 2, AREA_V // 2)]:
-                            try:
-                                if yellow_pixels[r + i][c + j]:
-                                    count_pixel += 1
-                                    if count_pixel > THRESHOLD_PATCHES:
-                                        break
-                            except:
-                                pass
-                        if count_pixel > THRESHOLD_PATCHES:
-                            break
-                    if count_pixel > THRESHOLD_PATCHES:
-                        count += 1
-        return count
-
-    return _detect(image_path, None, criterion,
-                   lambda extracted: extracted > 0, "Yellow patches")
 
 
 def normalize_brightness(image_path):
@@ -261,8 +147,12 @@ def normalize_brightness(image_path):
 
 
 def combin(image_path):
-    return (detect_yellow_num(image_path)[0] and normalize_brightness(
-        image_path)[0], None)
+    print(f"[ANALYSIS] Processed: {image_path}")
+    a = detect_yellow_num(image_path)
+    b = normalize_brightness(image_path)
+    res = (a[0] and b[0], None)
+    print(f"[ANALYSIS] Agitated: {res[0]}\n")
+    return res
 
 
 functions = [combin]
@@ -273,8 +163,7 @@ class ImageHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         file_name = os.path.basename(event.src_path)
-        if file_name.startswith(PREFIX) and file_name.lower().endswith(
-                ('.png', '.jpg', '.jpeg', '.tif')):
+        if file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif')):
             p = event.src_path
             for i in range(len(functions)):
                 functions[i](p)
