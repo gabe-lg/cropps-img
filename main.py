@@ -268,9 +268,23 @@ class CameraApp(tk.Tk):
         except ValueError:
             return False
 
+    # UI feature to display when waiting for microscope
+    def set_exposure_loading(self, status):
+        if status is True:
+            self.set_exposure_button.config(
+                state="disabled",
+                text="Working..."
+            )
+        else:
+            self.set_exposure_button.config(
+                state="normal",
+                text="Set Exposure"
+            )
+
     @threaded
     def apply_exposure(self):
         """Apply the exposure value to the microscope."""
+        self.set_exposure_loading(True)
         exposure_value = self.exposure_entry.get()
         if self.validate_exposure(exposure_value):
             exposure_value = int(exposure_value)
@@ -278,6 +292,7 @@ class CameraApp(tk.Tk):
             self.current_exposure = exposure_value
             self.exposure_label_text.set(f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
             print(f"Exposure set to {exposure_value:,}")
+        self.set_exposure_loading(False)
 
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
@@ -285,6 +300,7 @@ class CameraApp(tk.Tk):
         if ret:
             self.capture_task.set_frame(frame)
             frame_with_watermark = self.overlay_watermark(frame)
+            
             self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
             self.canvas.delete('all')
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
