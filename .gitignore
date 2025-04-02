@@ -5,5 +5,8 @@ sms/main
 .idea
 .venv
 *.png
+*.avi
 *.zip
 *.pyc
+
+!assets/*

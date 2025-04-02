@@ -17,7 +17,7 @@ from watchdog.events import FileSystemEventHandler
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
 PREFIX = ""
-SHOW_IMG = 1
+SHOW_IMG = False
 FAILED = 0
 
 # TOTAL INTENSITY
@@ -294,8 +294,10 @@ class ObserverWrapper():
         self.observer.start()
 
     def stop(self):
-        self.observer.stop()
-        self.observer.join()
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+            print("stopped observer")
 
 
 if __name__ == "__main__":
@@ -317,9 +319,9 @@ if __name__ == "__main__":
         return count
 
 
-    # agitated_count = failed_count(False, '/agitated')
+    agitated_count = failed_count(False, '/agitated')
     base_count = failed_count(True, '/base')
-#     print(f"Failed count: {agitated_count}")
+    print(f"Failed count: {agitated_count}")
     print(f"Failed count: {base_count}")
     try:
         while True:
