@@ -23,9 +23,10 @@ THRESHOLD_NUM_BRIGHT = 7000
 
 # BRIGHT PATCHES
 AREA_H = 10
+
 AREA_V = 10
 THRESHOLD_PATCHES = 99
-READ_DELAY = 0
+READ_DELAY = 1
 
 # NORMALIZED INTENSITY
 THRESHOLD_NORMALIZED = 5
@@ -34,6 +35,44 @@ THRESHOLD_NORMALIZED_TOTAL = 50000
 
 ### END OF PARAMETERS ###
 
+
+# draw #
+def paint_pixel(frame, x, y, color):
+    assert isinstance(x, int) and isinstance(y, int)
+    assert 0 <= x < frame.shape[0] and 0 <= y < frame.shape[1]
+    assert isinstance(color, tuple) and len(color) == 3
+    assert (0 <= color[i] <= 255 for i in range(3))
+
+    frame[x, y] = color
+
+def paint_square(frame, threshold_value=75):
+    """
+    Function to draw a square around the region with the most white pixels in the given frame.
+
+    :param frame: The current frame from the video stream.
+    :param threshold_value: The threshold value to identify white pixels.
+    :return: Frame with a square drawn around the white region.
+    """
+    # Convert the frame to grayscale
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Apply a binary threshold to isolate the white pixels
+    _, thresholded = cv2.threshold(gray_frame, threshold_value, 255, cv2.THRESH_BINARY)
+
+    # Find contours (white regions) in the thresholded image
+    contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Find the largest contour (i.e., the region with the most white pixels)
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        # Get the bounding box of the largest contour
+        x, y, w, h = cv2.boundingRect(largest_contour)
+
+        # Draw a square (bounding box) around the largest region
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green square with thickness 2
+
+    return frame
 
 def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     time.sleep(READ_DELAY)

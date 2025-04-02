@@ -5,7 +5,7 @@ import cv2
 import os
 import platform
 
-from analysis.main import ObserverWrapper
+from analysis.main import ObserverWrapper, paint_square
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 960
@@ -204,6 +204,11 @@ def start_camera():
             # stop the capture process
             task.stop()
             observer_obj.stop()
+
+        if key == ord('5'):
+            paint_square(frame)
+            print("painted")
+            cv2.imshow("sample", frame)
 
         # Press 'r' to start recording
         if key == ord('r') and not recording:
