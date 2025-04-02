@@ -1,7 +1,9 @@
-**/__pycache__
+**/__pycache__git 
 sms/env.cpp
 sms/main
 .env*
 .idea
 .venv
 *.png
+*.zip
+*.pyc

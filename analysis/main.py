@@ -8,8 +8,7 @@ from watchdog.events import FileSystemEventHandler
 
 ### PARAMETERS ###
 # Change to your image directory (normalize slashes for platform!)
-WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
-    else "./CROPPS_Training_Dataset"
+WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" else "./CROPPS_Training_Dataset"
 PREFIX = ""
 SHOW_IMG = False
 FAILED = 0
@@ -17,19 +16,18 @@ FAILED = 0
 # TOTAL INTENSITY
 THRESHOLD_TOTAL_INTENSITY = 21000000
 
+# MAX INTENSITY
+THRESHOLD_MAX_INTENSITY = 100
+
 # BRIGHT PIXELS
-THRESHOLD_BRIGHT = 40
-THRESHOLD_NUM_BRIGHT = 7000
+THRESHOLD_BRIGHT = 75
+THRESHOLD_NUM_BRIGHT = 50
 
 # BRIGHT PATCHES
-AREA_H = 10
-AREA_V = 10
-THRESHOLD_PATCHES = 99
-READ_DELAY = 0
-
-# NORMALIZED INTENSITY
-THRESHOLD_NORMALIZED = 5
-THRESHOLD_NORMALIZED_TOTAL = 50000
+AREA_H = 50
+AREA_V = 50
+THRESHOLD_PATCHES = 625
+READ_DELAY = 1
 
 
 ### END OF PARAMETERS ###
@@ -96,26 +94,7 @@ def detect_patch_of_yellow(image_path):
                    lambda extracted: extracted > 0, "Yellow patches")
 
 
-def normalize_brightness(image_path):
-    def criteria(img):
-        avg = int(np.average(img))
-        max = int(np.max(img))
-        img -= int(avg)
-        return cv2.countNonZero(cv2.inRange(img, np.array(
-            [int(avg * (1 + THRESHOLD_NORMALIZED / 100))]), np.array([
-            100])))
-
-    return _detect(image_path, None, criteria,
-                   lambda extracted: extracted > THRESHOLD_NORMALIZED_TOTAL,
-                   "Normalized intensity")
-
-
-def combin(image_path):
-    return (detect_yellow_num(image_path)[0] and normalize_brightness(
-        image_path)[0], None)
-
-
-functions = [combin]
+functions = [detect_yellow_num]
 
 
 class ImageHandler(FileSystemEventHandler):
@@ -129,7 +108,6 @@ class ImageHandler(FileSystemEventHandler):
             for i in range(len(functions)):
                 functions[i](p)
 
-
 class ObserverWrapper():
     def __init__(self):
         self.event_handler = ImageHandler()
@@ -142,18 +120,15 @@ class ObserverWrapper():
         print(f"Monitoring directory: {WATCH_DIR} for new images...")
         self.observer.schedule(self.event_handler, WATCH_DIR, recursive=False)
         self.observer.start()
-
+    
     def stop(self):
         self.observer.stop()
         self.observer.join()
 
-
 if __name__ == "__main__":
-    WATCH_DIR = "../CROPPS_Training_Dataset"
     observer_obj = ObserverWrapper()
     observer_obj.start_monitoring()
-
-
+    
     def failed_count(failed, directory):
         files = os.listdir(WATCH_DIR + directory)
         count = [0 for _ in range(len(functions))]
@@ -166,10 +141,10 @@ if __name__ == "__main__":
         return count
 
 
-    agitated_count = failed_count(False, '/agitated')
-    base_count = failed_count(True, '/base')
-    print(f"Failed count: {agitated_count}")
-    print(f"Failed count: {base_count}")
+    # agitated_count = failed_count(False, '/agitated')
+    # base_count = failed_count(True, '/base')
+    # print(f"Failed count: {agitated_count}")
+    # print(f"Failed count: {base_count}")
     try:
         while True:
             time.sleep(1)
