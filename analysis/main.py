@@ -1,8 +1,14 @@
+import heapq
+from collections import deque
+
 import cv2
+import matplotlib
 import numpy as np
 import time
 import os
 import platform
+
+from matplotlib import pyplot as plt
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -11,7 +17,7 @@ from watchdog.events import FileSystemEventHandler
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
 PREFIX = ""
-SHOW_IMG = False
+SHOW_IMG = 1
 FAILED = 0
 
 # TOTAL INTENSITY
@@ -31,6 +37,9 @@ READ_DELAY = 1
 # NORMALIZED INTENSITY
 THRESHOLD_NORMALIZED = 5
 THRESHOLD_NORMALIZED_TOTAL = 50000
+
+# LONGEST PATH
+THRESHOLD_PATH = 0
 
 
 ### END OF PARAMETERS ###
@@ -78,10 +87,101 @@ def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
     return frame
 
 
+def paint_area(frame, threshold_value):
+    pixels = frame.max(axis=2) > THRESHOLD_BRIGHT
+    print(frame)
+    frame[pixels] = [255, 0, 0]
+
+
+def paint_path(frame, path, color, thickness):
+    """
+    Draws a thick line along a given path of pixel coordinates.
+
+    :param frame: OpenCV frame (image)
+    :param path: List of (x, y) tuples representing the path
+    :param color: BGR color tuple (default: red)
+    :param thickness: Line thickness
+    """
+
+    if len(path) < 2:
+        return frame  # No line to draw
+
+        # Convert (x, y) coordinates to NumPy array
+    path_array = np.array(path, dtype=np.int32)
+
+    # Draw a polyline connecting all points
+    cv2.polylines(frame, [path_array], isClosed=False, color=color,
+                  thickness=thickness)
+
+    return frame
+
+
+def longest_path(img):
+    binary_mask = (img > (np.max(img) * 0.9)).astype(np.uint8)
+    height, width = binary_mask.shape
+    directions = [(i, j) for j in range(-1, 2) for i in range(-1, 2)]
+    directions.remove((0, 0))
+
+    x_start, y_start = cv2.minMaxLoc(binary_mask)[3]
+    pq = []
+    heapq.heappush(pq, (
+        -binary_mask[x_start, y_start], (x_start, y_start), [(x_start,
+                                                              y_start)]))
+
+    # Visited set to prevent revisits
+    visited = set()
+
+    brightest_path = []
+
+    while pq:
+        neg_intensity, (x, y), path = heapq.heappop(
+            pq)  # Get highest-intensity pixel
+
+        if (x, y) in visited:
+            continue
+        visited.add((x, y))
+
+        # Store the best path found
+        if len(path) > len(brightest_path):
+            brightest_path = path
+
+        # Explore neighbors
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < height and 0 <= ny < width and (nx, ny) not in visited:
+                heapq.heappush(pq, (
+                    float(-binary_mask[nx, ny]), (nx, ny), path + [(nx,
+                                                                    ny)]))
+
+    return brightest_path
+
+
+def plot_histogram(img):
+    """
+    Displays a histogram of pixel intensities for a given image.
+
+    :param image_path: Path to the image file
+    """
+    matplotlib.use('TkAgg')
+    # Compute histogram (256 bins for intensity values 0-255)
+    hist = cv2.calcHist([img], [0], None, [256], [0, 256])
+
+    # Plot histogram
+    plt.figure(figsize=(8, 5))
+    plt.plot(hist, color='black')
+    plt.title("Pixel Intensity Histogram")
+    plt.xlabel("Intensity Value")
+    plt.ylabel("Pixel Count")
+    plt.xlim([0, 256])
+    plt.grid()
+    plt.show()
+
+
 def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     time.sleep(READ_DELAY)
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(image_path)
+    img3 = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         print(f"[ANALYSIS] Error loading {image_path}")
         return False, None
@@ -96,11 +196,13 @@ def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     print(f"[ANALYSIS] Processed: {image_path}")
     print(f"[ANALYSIS] {desc}: {data}")
     print(f"[ANALYSIS] Agitated: {agitated}\n")
-    if agitated:
+    if SHOW_IMG and agitated:
         paint_square(img2)
+        # paint_path(img2, longest_path(img), (255, 0, 0), 30)
         cv2.imshow("sample", img2)
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.destroyWindow("sample")
+        plot_histogram(img3)
     return agitated, data
 
 
@@ -215,9 +317,9 @@ if __name__ == "__main__":
         return count
 
 
-    agitated_count = failed_count(False, '/agitated')
+    # agitated_count = failed_count(False, '/agitated')
     base_count = failed_count(True, '/base')
-    print(f"Failed count: {agitated_count}")
+#     print(f"Failed count: {agitated_count}")
     print(f"Failed count: {base_count}")
     try:
         while True:
