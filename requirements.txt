@@ -2,3 +2,4 @@ twilio
 numpy
 opencv-python
 watchdog
+pillow

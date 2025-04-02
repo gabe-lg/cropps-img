@@ -1,24 +1,22 @@
-from driver.dnx64 import DNX64
+import tkinter as tk
+from tkinter import simpledialog
 import threading
 import time
 import cv2
 import os
 import platform
-
+from driver.dnx64 import DNX64
 from analysis.main import ObserverWrapper, paint_square
+from PIL import Image, ImageTk
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 960
 CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 30
 DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
 DEVICE_INDEX = 0
-QUERY_TIME = 0.05 # Buffer time for Dino-Lite to return value
-COMMAND_TIME = 0.25 # Buffer time to allow Dino-Lite to process command 
+QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
+COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
 SCREENSHOT_DIRECTORY = ".\\CROPPS_Training_Dataset\\" if platform.system() == "Windows" else "./CROPPS_Training_Dataset/"
-
-
-# Initialize microscope
-microscope = DNX64(DNX64_PATH)
 
 def threaded(func):
     """Wrapper to run a function in a separate thread with @threaded decorator"""
@@ -27,33 +25,8 @@ def threaded(func):
         thread.start()
     return wrapper
 
-def custom_microtouch_function():
-    """Executes when MicroTouch press detected"""
-    print("MicroTouch press detected!")
-    
-def print_amr():
-    microscope.Init()
-    amr = microscope.GetAMR(DEVICE_INDEX)
-    amr = round(amr,1)
-    print(f"{amr}x")
-    time.sleep(QUERY_TIME)
-    
-def set_index():    
-    microscope.Init()
-    microscope.SetVideoDeviceIndex(0)
-    time.sleep(COMMAND_TIME)
-
-def print_fov_mm():
-    microscope.Init()
-    fov = microscope.FOVx(DEVICE_INDEX,microscope.GetAMR(DEVICE_INDEX))
-    fov = round(fov / 1000,2)
-    print(fov, "mm")
-    time.sleep(QUERY_TIME)
-
-def print_deviceid():
-    microscope.Init()
-    print(microscope.GetDeviceId(0))
-    time.sleep(QUERY_TIME)
+# Initialize microscope
+microscope = DNX64(DNX64_PATH)
 
 def set_exposure(exposure):
     microscope.Init()
@@ -61,20 +34,11 @@ def set_exposure(exposure):
     microscope.SetExposureValue(DEVICE_INDEX, exposure)
     time.sleep(QUERY_TIME)
 
-@threaded
-def flash_leds():
-    microscope.Init()
-    microscope.SetLEDState(0,0)
-    time.sleep(COMMAND_TIME)
-    microscope.SetLEDState(0,1)
-    time.sleep(COMMAND_TIME)
-    
 def capture_image(frame):
     """Capture an image and save it in the current working directory."""
-    # create image directory if it doesn't exist
     if not os.path.exists(SCREENSHOT_DIRECTORY):
         os.makedirs(SCREENSHOT_DIRECTORY)
-
+    
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     filename = SCREENSHOT_DIRECTORY + f"image_{timestamp}.png"
     cv2.imwrite(filename, frame)
@@ -108,134 +72,121 @@ def process_frame(frame):
     """Resize frame to fit window."""
     return cv2.resize(frame, (WINDOW_WIDTH, WINDOW_HEIGHT))
 
-def start_capture(frame):
-    key = cv2.waitKey(25) & 0xff
-    while True:
-        capture_image(frame)
-        time.sleep(2)
-        if key == ord('d'):
-            break
+class CameraApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Dino-Lite Camera Control")
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.camera = initialize_camera()
+        self.recording = False
+        self.video_writer = None
 
-class StoppableThread(threading.Thread):
-    """Thread class with a stop() method. The thread itself has to check
-    regularly for the stopped() condition."""
+        # Create a frame for buttons to be packed into
+        self.button_frame = tk.Frame(self)
+        self.button_frame.pack(side="bottom", pady=10)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stop_event = threading.Event()
+        # Create a canvas for displaying the camera feed
+        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
+        self.canvas.pack()
 
-    def stop(self):
-        self._stop_event.set()
+        self.create_widgets()
 
-    def stopped(self):
-        return self._stop_event.is_set()
-    
-class captureTask(StoppableThread):
-    frame = None
+        self.imgtk = None  # Initialize a reference to avoid garbage collection
 
-    def run(self):
-        if self.frame is None:
-            raise Exception("Frame not set for capture")
-        
-        while not self.stopped():
-            capture_image(self.frame)
-            time.sleep(2)
-    
-    def set_frame(self, frame):
-        self.frame = frame
+    def create_widgets(self):
+        """Create all the GUI buttons."""
+        # AMR Button
+        self.amr_button = tk.Button(self.button_frame, text="Print AMR", command=self.print_amr)
+        self.amr_button.pack(side="left", padx=10)
 
-def start_camera():
-    """Starts camera, initializes variables for video preview, and listens for shortcut keys."""
-    camera = initialize_camera()
-    if not camera.isOpened():
-        print('Error opening the camera device.')
-        return
+        # LED Flash Button
+        self.flash_button = tk.Button(self.button_frame, text="Flash LEDs", command=self.flash_leds)
+        self.flash_button.pack(side="left", padx=10)
 
-    # monitoring vars
-    task = captureTask()
-    observer_obj = ObserverWrapper()
+        # FOV Button
+        self.fov_button = tk.Button(self.button_frame, text="Print FOV (mm)", command=self.print_fov)
+        self.fov_button.pack(side="left", padx=10)
 
-    recording = False
-    video_writer = None
+        # Capture Button
+        self.capture_button = tk.Button(self.button_frame, text="Capture Image", command=self.capture)
+        self.capture_button.pack(side="left", padx=10)
 
-    set_exposure(5_000)
+        # Start Recording Button
+        self.start_record_button = tk.Button(self.button_frame, text="Start Recording", command=self.start_recording)
+        self.start_record_button.pack(side="left", padx=10)
 
-    while True:
-        ret, frame = camera.read()
-        task.set_frame(frame) 
+        # Stop Recording Button
+        self.stop_record_button = tk.Button(self.button_frame, text="Stop Recording", command=self.stop_recording)
+        self.stop_record_button.pack(side="left", padx=10)
 
+        # Close Button
+        self.quit_button = tk.Button(self.button_frame, text="Exit", command=self.quit)
+        self.quit_button.pack(side="left", padx=10)
+
+    @threaded
+    def capture(self):
+        """Capture an image when the button is pressed."""
+        ret, frame = self.camera.read()
         if ret:
-            resized_frame = process_frame(frame)
-            cv2.imshow('Dino-Lite Camera', resized_frame)
-
-            if recording:
-                video_writer.write(frame)
-        
-        key = cv2.waitKey(25) & 0xff
-        
-        # Press '1' to print AMR value
-        if key == ord('1'):
-            print_amr()
-            exposure = input("Enter exposure value for camera:")
-            set_exposure(int(exposure))
-
-        # Press '2' to flash LEDs
-        if key == ord('2'):
-            flash_leds()
-        
-        # Press 'f' to show fov
-        if key == ord('f'):
-            print_fov_mm()
-            
-        # Press 'd' to show device id
-        if key == ord('d'):
-            print_deviceid()
-
-        # Press 's' to save a snapshot
-        if key == ord('s'):
             capture_image(frame)
 
-        if key == ord('3'):
-            # start capturing images every 2 seconds
-            task.start()
-            observer_obj.start_monitoring()
+    @threaded
+    def print_amr(self):
+        """Print the AMR value when the button is pressed."""
+        microscope.Init()
+        amr = microscope.GetAMR(DEVICE_INDEX)
+        amr = round(amr, 1)
+        print(f"{amr}x")
 
-        if key == ord('4'):
-            # stop the capture process
-            task.stop()
-            observer_obj.stop()
+    @threaded
+    def flash_leds(self):
+        """Flash the LED when the button is pressed."""
+        microscope.Init()
+        microscope.SetLEDState(0, 0)
+        time.sleep(COMMAND_TIME)
+        microscope.SetLEDState(0, 1)
+        time.sleep(COMMAND_TIME)
 
-        if key == ord('5'):
-            paint_square(frame)
-            print("painted")
-            cv2.imshow("sample", frame)
+    @threaded
+    def print_fov(self):
+        """Print the FOV in mm when the button is pressed."""
+        microscope.Init()
+        fov = microscope.FOVx(DEVICE_INDEX, microscope.GetAMR(DEVICE_INDEX))
+        fov = round(fov / 1000, 2)
+        print(f"{fov} mm")
 
-        # Press 'r' to start recording
-        if key == ord('r') and not recording:
-            recording = True
-            video_writer = start_recording(CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS)
+    def start_recording(self):
+        """Start recording video."""
+        if not self.recording:
+            self.recording = True
+            self.video_writer = start_recording(CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS)
 
-        # Press 'SPACE' to stop recording
-        if key == 32 and recording:
-            recording = False
-            stop_recording(video_writer)
+    def stop_recording(self):
+        """Stop recording video."""
+        if self.recording:
+            self.recording = False
+            stop_recording(self.video_writer)
 
-        # Press ESC to close
-        if key == 27:
-            break
+    def update_camera_feed(self):
+        """Update the camera feed in the GUI window."""
+        ret, frame = self.camera.read()
+        if ret:
+            # Convert the frame to RGB (from BGR)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Convert the frame to a PIL image
+            img = Image.fromarray(frame_rgb)
+            # Convert the PIL image to a Tkinter image
+            self.imgtk = ImageTk.PhotoImage(image=img)
+            # Update the canvas with the new image
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
+        # Update every 10 ms
+        self.after(10, self.update_camera_feed)
 
-    if video_writer is not None:
-        video_writer.release()
-    camera.release()
-    cv2.destroyAllWindows()
-      
 def main():
-    """Main function to run the camera and set the MicroTouch event callback."""
-    microscope.SetVideoDeviceIndex(DEVICE_INDEX) # Set index of video device. Call before Init().
-    microscope.Init() # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
-     # Set exposure value for camera to 30000
-    start_camera()
-    
+    app = CameraApp()
+    app.update_camera_feed()  # Start the camera feed update loop
+    app.mainloop()
+
 if __name__ == "__main__":
     main()
