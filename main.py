@@ -268,6 +268,7 @@ class CameraApp(tk.Tk):
         except ValueError:
             return False
 
+    @threaded
     def apply_exposure(self):
         """Apply the exposure value to the microscope."""
         exposure_value = self.exposure_entry.get()
