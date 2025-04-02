@@ -3,15 +3,20 @@ from tkinter import simpledialog
 import threading
 import time
 import cv2
+from pathlib import Path
 from driver.dnx64 import DNX64
 from analysis.main import ObserverWrapper, paint_square
 from capture_task import capture_image, CaptureTask
 from PIL import Image, ImageTk
 
+# Paths
+WATERMARK_PATH = Path(__file__).parent / "assets" / "cropps_watermark.png"
+ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
+DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
+
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 960
 CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 30
-DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
@@ -69,13 +74,17 @@ def process_frame(frame):
 class CameraApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Dino-Lite Camera Control")
+        self.title("CROPPS Camera Control")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.iconphoto(False, tk.PhotoImage(file=ICO_PATH))
+        # self.iconphoto(False, ICO_PATH)
+
         microscope.SetVideoDeviceIndex(
         DEVICE_INDEX)  # Set index of video device. Call before Init().
         microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
         self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
         self.camera = initialize_camera()
+
         self.recording = False
         self.video_writer = None
         self.analyzing = False
@@ -92,6 +101,7 @@ class CameraApp(tk.Tk):
 
         self.create_widgets()
 
+        self.load_watermark(WATERMARK_PATH)
         self.imgtk = None  # Initialize a reference to avoid garbage collection
 
     def create_widgets(self):
@@ -113,7 +123,7 @@ class CameraApp(tk.Tk):
         self.capture_button.pack(side="left", padx=10)
 
         # Analysis buttons
-        self.start_analysis_button = tk.Button(self.button_frame, text="Start Analsysis", fg="darkgreen", command=self.start_analysis)
+        self.start_analysis_button = tk.Button(self.button_frame, text="Start Analysis", fg="darkgreen", command=self.start_analysis)
         self.start_analysis_button.pack(side="left", padx=10)
 
         # Start Recording Button
@@ -146,6 +156,40 @@ class CameraApp(tk.Tk):
         self.stop_analysis()
         self.camera.release()
         super().quit()
+
+    def load_watermark(self, watermark_path):
+        """Load the watermark image and resize it."""
+        if watermark_path.exists():  # Check if the watermark file exists
+            self.watermark = Image.open(watermark_path)
+            self.watermark = self.watermark.resize(
+                (200, 100)
+            )  # Resize the watermark (optional)
+        else:
+            print(f"[DRIVER] Warning: Watermark file not found at {watermark_path}")
+            self.watermark = Image.new(
+                "RGBA", (200, 100)
+            )  # Return an empty image if the watermark doesn't exist
+
+    def overlay_watermark(self, frame):
+        """Overlay the watermark on the frame."""
+        # Convert the frame to RGB (from BGR)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Convert frame to a PIL image
+        pil_image = Image.fromarray(frame_rgb)
+
+        # Overlay watermark at bottom right corner (can change position)
+        # watermark_width, watermark_height = self.watermark.size
+        padding = 10
+        pil_image.paste(
+            self.watermark,
+            (
+                 0 + padding,
+                 0 + padding,
+            ),
+            self.watermark,
+        )
+        return pil_image
 
     @threaded
     def capture(self):
@@ -199,7 +243,7 @@ class CameraApp(tk.Tk):
             fg="darkred",
             command=self.stop_analysis
         )
-    
+
     def stop_analysis(self):
         if self.capture_task.is_alive():
             self.capture_task.stop()
@@ -239,13 +283,8 @@ class CameraApp(tk.Tk):
         ret, frame = self.camera.read()
         if ret:
             self.capture_task.set_frame(frame)
-            # Convert the frame to RGB (from BGR)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # Convert the frame to a PIL image
-            img = Image.fromarray(frame_rgb)
-            # Convert the PIL image to a Tkinter image
-            self.imgtk = ImageTk.PhotoImage(image=img)
-            # Update the canvas with the new image
+            frame_with_watermark = self.overlay_watermark(frame)
+            self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # Update every 10 ms

@@ -8,3 +8,5 @@ sms/main
 *.avi
 *.zip
 *.pyc
+
+!assets/*
