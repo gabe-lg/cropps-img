@@ -3,10 +3,9 @@ from tkinter import simpledialog
 import threading
 import time
 import cv2
-import os
-import platform
 from driver.dnx64 import DNX64
 from analysis.main import ObserverWrapper, paint_square
+from capture_task import capture_image, CaptureTask
 from PIL import Image, ImageTk
 
 # Constants
@@ -16,13 +15,14 @@ DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
-SCREENSHOT_DIRECTORY = ".\\CROPPS_Training_Dataset\\" if platform.system() == "Windows" else "./CROPPS_Training_Dataset/"
 
 def threaded(func):
     """Wrapper to run a function in a separate thread with @threaded decorator"""
+
     def wrapper(*args, **kwargs):
         thread = threading.Thread(target=func, args=args, kwargs=kwargs)
         thread.start()
+
     return wrapper
 
 # Initialize microscope
@@ -34,39 +34,33 @@ def set_exposure(exposure):
     microscope.SetExposureValue(DEVICE_INDEX, exposure)
     time.sleep(QUERY_TIME)
 
-def capture_image(frame):
-    """Capture an image and save it in the current working directory."""
-    if not os.path.exists(SCREENSHOT_DIRECTORY):
-        os.makedirs(SCREENSHOT_DIRECTORY)
-    
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = SCREENSHOT_DIRECTORY + f"image_{timestamp}.png"
-    cv2.imwrite(filename, frame)
-    print(f"[DRIVER] Saved image to {filename}")
-
 def start_recording(frame_width, frame_height, fps):
     """Start recording video and return the video writer object."""
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     filename = f"video_{timestamp}.avi"
     fourcc = cv2.VideoWriter.fourcc(*'XVID')
-    video_writer = cv2.VideoWriter(filename, fourcc, fps, (frame_width, frame_height))
+    video_writer = cv2.VideoWriter(filename, fourcc, fps,
+                                   (frame_width, frame_height))
     print(f"Video recording started: {filename}\nPress SPACE to stop.")
     return video_writer
+
 
 def stop_recording(video_writer):
     """Stop recording video and release the video writer object."""
     video_writer.release()
     print("Video recording stopped")
 
+
 def initialize_camera():
     """Setup OpenCV camera parameters and return the camera object."""
     camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
     camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('m','j','p','g'))
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M','J','P','G'))
+    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
+    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
     return camera
+
 
 def process_frame(frame):
     """Resize frame to fit window."""
@@ -77,9 +71,16 @@ class CameraApp(tk.Tk):
         super().__init__()
         self.title("Dino-Lite Camera Control")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        microscope.SetVideoDeviceIndex(
+        DEVICE_INDEX)  # Set index of video device. Call before Init().
+        microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
+        self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
         self.camera = initialize_camera()
         self.recording = False
         self.video_writer = None
+        self.analyzing = False
+        self.capture_task = CaptureTask()
+        self.observer_obj = ObserverWrapper()
 
         # Create a frame for buttons to be packed into
         self.button_frame = tk.Frame(self)
@@ -111,6 +112,10 @@ class CameraApp(tk.Tk):
         self.capture_button = tk.Button(self.button_frame, text="Capture Image", command=self.capture)
         self.capture_button.pack(side="left", padx=10)
 
+        # Analysis buttons
+        self.start_analysis_button = tk.Button(self.button_frame, text="Start Analsysis", fg="darkgreen", command=self.start_analysis)
+        self.start_analysis_button.pack(side="left", padx=10)
+
         # Start Recording Button
         self.start_record_button = tk.Button(self.button_frame, text="Start Recording", command=self.start_recording)
         self.start_record_button.pack(side="left", padx=10)
@@ -119,9 +124,28 @@ class CameraApp(tk.Tk):
         self.stop_record_button = tk.Button(self.button_frame, text="Stop Recording", command=self.stop_recording)
         self.stop_record_button.pack(side="left", padx=10)
 
+        # Exposure label and entry
+        self.exposure_label_text = tk.StringVar(value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
+        self.exposure_label = tk.Label(self.button_frame, textvariable=self.exposure_label_text)
+        self.exposure_label.pack(side="left", padx=10)
+
+        self.exposure_entry = tk.Entry(self.button_frame)
+        self.exposure_entry.pack(side="left", padx=10)
+        self.exposure_entry.bind("<Return>", lambda event: self.apply_exposure())
+
+        # Set Exposure Button
+        self.set_exposure_button = tk.Button(self.button_frame, text="Set Exposure", command=self.apply_exposure)
+        self.set_exposure_button.pack(side="left", padx=10)
+
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit", command=self.quit)
         self.quit_button.pack(side="left", padx=10)
+
+    def quit(self):
+        cv2.destroyAllWindows()
+        self.stop_analysis()
+        self.camera.release()
+        super().quit()
 
     @threaded
     def capture(self):
@@ -167,10 +191,54 @@ class CameraApp(tk.Tk):
             self.recording = False
             stop_recording(self.video_writer)
 
+    def start_analysis(self):
+        self.capture_task.start()
+        self.observer_obj.start_monitoring()
+        self.start_analysis_button.config(
+            text="Stop Analysis",
+            fg="darkred",
+            command=self.stop_analysis
+        )
+    
+    def stop_analysis(self):
+        if self.capture_task.is_alive():
+            self.capture_task.stop()
+            self.capture_task.join()
+        self.observer_obj.stop()
+        self.start_analysis_button.config(
+            text="Start Analysis",
+            fg="darkgreen",
+            command=self.start_analysis
+        )
+        self.capture_task = CaptureTask()
+        self.observer_obj = ObserverWrapper()
+
+    def validate_exposure(self, value):
+        """Validate that the exposure value is between 100 and 60000."""
+        try:
+            value = int(value)
+            if 100 <= value <= 60000:
+                return True
+            else:
+                return False
+        except ValueError:
+            return False
+
+    def apply_exposure(self):
+        """Apply the exposure value to the microscope."""
+        exposure_value = self.exposure_entry.get()
+        if self.validate_exposure(exposure_value):
+            exposure_value = int(exposure_value)
+            set_exposure(exposure_value)
+            self.current_exposure = exposure_value
+            self.exposure_label_text.set(f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
+            print(f"Exposure set to {exposure_value:,}")
+
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
         ret, frame = self.camera.read()
         if ret:
+            self.capture_task.set_frame(frame)
             # Convert the frame to RGB (from BGR)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             # Convert the frame to a PIL image

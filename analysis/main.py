@@ -45,7 +45,8 @@ def paint_pixel(frame, x, y, color):
 
     frame[x, y] = color
 
-def paint_square(frame, threshold_value=75):
+
+def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
     """
     Function to draw a square around the region with the most white pixels in the given frame.
 
@@ -57,26 +58,30 @@ def paint_square(frame, threshold_value=75):
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # Apply a binary threshold to isolate the white pixels
-    _, thresholded = cv2.threshold(gray_frame, threshold_value, 255, cv2.THRESH_BINARY)
+    _, thresholded = cv2.threshold(gray_frame, threshold_value, 255,
+                                   cv2.THRESH_BINARY)
 
     # Find contours (white regions) in the thresholded image
-    contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
 
     # Find the largest contour (i.e., the region with the most white pixels)
     if contours:
         largest_contour = max(contours, key=cv2.contourArea)
-        
+
         # Get the bounding box of the largest contour
         x, y, w, h = cv2.boundingRect(largest_contour)
 
         # Draw a square (bounding box) around the largest region
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green square with thickness 2
-
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0),
+                      2)  # Green square with thickness 2
     return frame
+
 
 def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     time.sleep(READ_DELAY)
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    img2 = cv2.imread(image_path)
     if img is None:
         print(f"[ANALYSIS] Error loading {image_path}")
         return False, None
@@ -91,6 +96,11 @@ def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     print(f"[ANALYSIS] Processed: {image_path}")
     print(f"[ANALYSIS] {desc}: {data}")
     print(f"[ANALYSIS] Agitated: {agitated}\n")
+    if agitated:
+        paint_square(img2)
+        cv2.imshow("sample", img2)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
     return agitated, data
 
 
@@ -138,7 +148,6 @@ def detect_patch_of_yellow(image_path):
 def normalize_brightness(image_path):
     def criteria(img):
         avg = int(np.average(img))
-        max = int(np.max(img))
         img -= int(avg)
         return cv2.countNonZero(cv2.inRange(img, np.array(
             [int(avg * (1 + THRESHOLD_NORMALIZED / 100))]), np.array([
@@ -189,6 +198,7 @@ class ObserverWrapper():
 
 if __name__ == "__main__":
     WATCH_DIR = "../CROPPS_Training_Dataset"
+    READ_DELAY = 0
     observer_obj = ObserverWrapper()
     observer_obj.start_monitoring()
 
