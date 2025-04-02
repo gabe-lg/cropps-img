@@ -233,7 +233,7 @@ class CameraApp(tk.Tk):
         """Stop recording video."""
         if self.recording:
             self.recording = False
-            stop_recording(self.video_writer)
+            self.video_writer.release()
 
     def start_analysis(self):
         self.capture_task.start()
@@ -285,6 +285,7 @@ class CameraApp(tk.Tk):
             self.capture_task.set_frame(frame)
             frame_with_watermark = self.overlay_watermark(frame)
             self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
+            self.canvas.delete('all')
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # Update every 10 ms
