@@ -96,11 +96,11 @@ def _detect(image_path, mask, extracted, criteria, desc) -> (bool, int):
     print(f"[ANALYSIS] Processed: {image_path}")
     print(f"[ANALYSIS] {desc}: {data}")
     print(f"[ANALYSIS] Agitated: {agitated}\n")
-    if agitated:
-        paint_square(img2)
-        cv2.imshow("sample", img2)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    # if agitated:
+    #     paint_square(img2)
+    #     cv2.imshow("sample", img2)
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
     return agitated, data
 
 
@@ -192,8 +192,10 @@ class ObserverWrapper():
         self.observer.start()
 
     def stop(self):
-        self.observer.stop()
-        self.observer.join()
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+            print("stopped observer")
 
 
 if __name__ == "__main__":
