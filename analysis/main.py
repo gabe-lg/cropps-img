@@ -16,7 +16,7 @@ from watchdog.events import FileSystemEventHandler
 WATCH_DIR = ".\\captured_data" if platform.system() == "Windows" \
     else "./captured_data"
 WATCH_DIR2 = "..\\captured_data"
-SHOW_IMG = 1
+SHOW_IMG = 0
 FAILED = 0
 READ_DELAY = 0.1
 COOLDOWN = 5 #cycles

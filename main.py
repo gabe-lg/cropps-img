@@ -9,11 +9,12 @@ from pathlib import Path
 from driver.dnx64 import DNX64
 from capture_task import capture_image, CaptureTask
 from PIL import Image, ImageTk
+import send_sms
 
 # Paths
 WATERMARK_PATH = Path(__file__).parent / "assets" / "cropps_watermark.png"
 ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
-DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\DNX64\\DNX64.dll'
+DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1400, 960
@@ -149,18 +150,47 @@ class CameraApp(tk.Tk):
         self.set_exposure_button.pack(side="left", padx=10)
 
         # Set SMS information Button
-        # self.set_sms_button = tk.Button(self.button_frame, text="Set SMS Information", command=self.sms_settings)
-        # self.set_sms_button.pack(side="left", padx=10)
+        self.set_sms_button = tk.Button(self.button_frame, text="SMS Info", command=self.sms_info)
+        self.set_sms_button.pack(side="left", padx=10)
 
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit", command=self.quit)
         self.quit_button.pack(side="left", padx=10)
 
-    # def sms_settings():
-    #     popup = tk.Tk()
-    #     popup.wm_title("!")
-    #     label = tk.Label(popup, text="Test")
+    def sms_info(self):
+        sms_dialog = tk.Toplevel(self)
+        sms_dialog.title("Enter SMS Details")
 
+        #create label and input for the name 
+        name_label = tk.Label(sms_dialog, text="Enter name: ")
+        name_label.grid(row=0, column=0, padx=10, pady=10)
+        name_entry = tk.Entry(sms_dialog)
+        name_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        #create label and input for the phone number  
+        contact_label = tk.Label(sms_dialog, text="Enter phone number: ")
+        contact_label.grid(row=1, column=0, padx=10, pady=10)
+        contact_entry = tk.Entry(sms_dialog)
+        contact_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        def send_info():
+            name = name_entry.get()
+            contact = contact_entry.get()
+
+            if name and contact:
+                  send_sms.set_info(name, contact)
+                  sms_dialog.destroy()
+            else:
+                print("Both values are required")
+       
+        #create a save button 
+        save_button = tk.Button(sms_dialog, text="Save", command=send_info)
+        save_button.grid(row=2, columnspan=2, pady=10)
+
+      
+
+        sms_dialog.mainloop()
+        
         
     def quit(self):
         cv2.destroyAllWindows()

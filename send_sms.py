@@ -2,11 +2,18 @@ import subprocess
 import os
 
 # Define the path where adb works
-working_directory = "C:\\Users\\CROPPS-in-Box\\Downloads\\platform-tools-latest-windows\\platform-tools"
+working_directory = "C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\platform-tools-latest-windows\\platform-tools"
 
-    # Get user input for phone number and name
-phone_number = "+1" + input("Enter the phone number (e.g., 1234567890): ")
-name = input("Enter the name: ")
+# Get user input for phone number and name
+#phone_number = "+1" + input("Enter the phone number (e.g., 1234567890): ")
+#name = input("Enter the name: ")
+
+
+def set_info(contact_name, contact_phone):
+    global name
+    global phone
+    name = contact_name
+    phone = contact_phone 
 
 def main():
     # Create the message dynamically
@@ -20,7 +27,7 @@ def main():
         "startservice", 
         "--user", "0", 
         "-n", "com.android.shellms/.sendSMS", 
-        "-e", "contact", phone_number, 
+        "-e", "contact", phone, 
         "-e", "msg", f"'{message}'"
     ]
 
@@ -31,7 +38,7 @@ def main():
     # Execute the command
     try:
         subprocess.run(command, check=True)
-        print(f"Message sent to {phone_number}: {message}")
+        print(f"Message sent to {phone}: {message}")
     except subprocess.CalledProcessError as e:
         print(f"An error occurred: {e}")
 
