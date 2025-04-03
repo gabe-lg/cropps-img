@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 # Paths
 WATERMARK_PATH = Path(__file__).parent / "assets" / "cropps_watermark.png"
 ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
-DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
+DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\DNX64\\DNX64.dll'
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1400, 960

@@ -13,17 +13,17 @@ from watchdog.events import FileSystemEventHandler
 
 ### PARAMETERS ###
 # Change to your image directory (normalize slashes for platform!)
-WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
-    else "./CROPPS_Training_Dataset"
-WATCH_DIR2 = "..\\CROPPS_Training_Dataset"
-SHOW_IMG = 0
+WATCH_DIR = ".\\captured_data" if platform.system() == "Windows" \
+    else "./captured_data"
+WATCH_DIR2 = "..\\captured_data"
+SHOW_IMG = 1
 FAILED = 0
 READ_DELAY = 0.1
 COOLDOWN = 5 #cycles
 
 # BRIGHT PIXELS
-THRESHOLD_BRIGHT = 40
-THRESHOLD_NUM_BRIGHT = 7000
+THRESHOLD_BRIGHT = 40   # intensity ranges from 0 to 255
+THRESHOLD_NUM_BRIGHT = 7000 # 1228800 (1280*960) pixels in an image
 
 # NORMALIZED INTENSITY
 THRESHOLD_NORMALIZED = 5
@@ -215,7 +215,7 @@ class ObserverWrapper():
 
 
 if __name__ == "__main__":
-    WATCH_DIR = "../CROPPS_Training_Dataset"
+    WATCH_DIR = "../captured_data"
     READ_DELAY = 0
     observer_obj = ObserverWrapper()
     observer_obj.start_monitoring()
