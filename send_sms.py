@@ -4,9 +4,7 @@ import os
 # Define the path where adb works
 working_directory = "C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\platform-tools-latest-windows\\platform-tools"
 
-# Get user input for phone number and name
-
-
+# Set phone number and name
 def set_info(contact_name, contact_phone):
     global name
     global phone
