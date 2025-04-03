@@ -4,9 +4,10 @@ import os
 # Define the path where adb works
 working_directory = "C:\\Users\\CROPPS-in-Box\\Downloads\\platform-tools-latest-windows\\platform-tools"
 
-    # Get user input for phone number and name
+# Get user input for phone number and name
 phone_number = "+1" + input("Enter the phone number (e.g., 1234567890): ")
 name = input("Enter the name: ")
+
 
 def main():
     # Create the message dynamically
@@ -14,13 +15,13 @@ def main():
 
     # Define the adb command to be executed
     command = [
-        "./adb", 
-        "shell", 
-        "am", 
-        "startservice", 
-        "--user", "0", 
-        "-n", "com.android.shellms/.sendSMS", 
-        "-e", "contact", phone_number, 
+        "./adb",
+        "shell",
+        "am",
+        "startservice",
+        "--user", "0",
+        "-n", "com.android.shellms/.sendSMS",
+        "-e", "contact", phone_number,
         "-e", "msg", f"'{message}'"
     ]
 
@@ -37,5 +38,6 @@ def main():
 
     os.chdir(oldpwd)
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     main()

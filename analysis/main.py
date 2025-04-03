@@ -4,39 +4,46 @@ import os
 import platform
 import send_sms
 import time
-import capture_task
 
 from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-### PARAMETERS ###
+### GLOBAL VARIABLES ###
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\captured_data" if platform.system() == "Windows" \
     else "./captured_data"
-WATCH_DIR2 = "..\\captured_data"
-SHOW_IMG = 1
-FAILED = 0
-READ_DELAY = 0.1
-COOLDOWN = 5 #cycles
 
+# the file cannot be read immediately after saving. Controls the number of
+# seconds to wait before the file is read
+READ_DELAY = 0.1
+
+# the cooldown period: the number of cycles before another text message can
+# be sent to the user
+COOLDOWN = 5
+
+# A value of 0 hides any popups. A value of 1 shows both the analyzed image
+# and a histogram showing the intensities of every pixel
+SHOW_IMG = 1
+
+IS_TEST = 0
+
+### Thresholds for analysis - see functions below for specifications ###
 # BRIGHT PIXELS
-THRESHOLD_BRIGHT = 40   # intensity ranges from 0 to 255
-THRESHOLD_NUM_BRIGHT = 7000 # 1228800 (1280*960) pixels in an image
+THRESHOLD_BRIGHT = 40  # intensity ranges from 0 to 255
+THRESHOLD_NUM_BRIGHT = 7000  # 1228800 (1280 * 960) pixels in an image
 
 # NORMALIZED INTENSITY
 THRESHOLD_NORMALIZED = 5
 THRESHOLD_NORMALIZED_TOTAL = 50000
 
-
-### END OF PARAMETERS ###
+### END OF GLOBAL VARIABLES ###
 
 
 cooldown_tmp = 0
 
 
-# draw #
 def paint_square(frame: cv2.Mat | np.ndarray[Any, np.dtype],
                  threshold_value: int = THRESHOLD_BRIGHT) \
         -> cv2.Mat | np.ndarray[Any, np.dtype]:
@@ -120,10 +127,6 @@ def _detect(image_path: str, extracted: Callable[
     agitated = criterion(data)
     print(f"[ANALYSIS] {desc}: {data}")
     if SHOW_IMG:
-        paint_square(img2)
-        cv2.imshow("sample", img2)
-        cv2.waitKey(0)
-        cv2.destroyWindow("sample")
         plot_histogram(img3)
     return agitated, data
 
@@ -173,13 +176,14 @@ def combin(image_path: str) -> tuple[bool, Optional[int]]:
     print(f"[ANALYSIS] Agitated: {res[0]}\n")
     if cooldown_tmp:
         cooldown_tmp -= 1
-    elif res[0]:
-            send_sms.main()
-            cooldown_tmp = COOLDOWN
+    elif res[0] and not IS_TEST:
+        send_sms.main()
+        cooldown_tmp = COOLDOWN
     print(f"Cooldown: {cooldown_tmp}")
     return res
 
 
+# Other than testing, only one function should be called.
 functions = [combin]
 
 
@@ -215,8 +219,11 @@ class ObserverWrapper():
 
 
 if __name__ == "__main__":
-    WATCH_DIR = "../captured_data"
+    # Run this to test the analysis functions.
+    WATCH_DIR = "../CROPPS_Training_Dataset"
     READ_DELAY = 0
+    FAILED = 0
+    IS_TEST = 1
     observer_obj = ObserverWrapper()
     observer_obj.start_monitoring()
 
