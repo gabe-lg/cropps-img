@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import platform
+import send_sms
 import time
 
 from matplotlib import use, pyplot as plt
@@ -13,9 +14,9 @@ from watchdog.events import FileSystemEventHandler
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
-SHOW_IMG = 1
+SHOW_IMG = 0
 FAILED = 0
-READ_DELAY = 1
+READ_DELAY = 0.1
 
 # BRIGHT PIXELS
 THRESHOLD_BRIGHT = 40
@@ -163,6 +164,8 @@ def combin(image_path: str) -> tuple[bool, Optional[int]]:
     b = normalize_brightness(image_path)
     res = (a[0] and b[0], None)
     print(f"[ANALYSIS] Agitated: {res[0]}\n")
+    if res[0]:
+        send_sms.main()
     return res
 
 
