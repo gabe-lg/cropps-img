@@ -9,7 +9,7 @@ def set_info(contact_name, contact_phone):
     global name
     global phone
     name = contact_name
-    phone = contact_phone 
+    phone = contact_phone
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
         "startservice", 
         "--user", "0", 
         "-n", "com.android.shellms/.sendSMS", 
-        "-e", "contact", phone, 
+        "-e", "contact", phone,
         "-e", "msg", f"'{message}'"
     ]
 
@@ -41,5 +41,6 @@ def main():
 
     os.chdir(oldpwd)
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     main()
