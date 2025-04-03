@@ -1,6 +1,7 @@
-twilio
+matplotlib
 numpy
-opencv-python
-watchdog
+opencv_python
 pillow
-dotenv
+python-dotenv
+twilio
+watchdog

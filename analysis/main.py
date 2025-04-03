@@ -1,11 +1,10 @@
 import cv2
-import matplotlib
 import numpy as np
 import os
 import platform
 import time
 
-from matplotlib import pyplot as plt
+from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -14,7 +13,7 @@ from watchdog.events import FileSystemEventHandler
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
-SHOW_IMG = 0
+SHOW_IMG = 1
 FAILED = 0
 READ_DELAY = 1
 
@@ -31,7 +30,9 @@ THRESHOLD_NORMALIZED_TOTAL = 50000
 
 
 # draw #
-def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
+def paint_square(frame: cv2.Mat | np.ndarray[Any, np.dtype],
+                 threshold_value: int = THRESHOLD_BRIGHT) \
+        -> cv2.Mat | np.ndarray[Any, np.dtype]:
     """
     Function to draw a square around the region with the most white pixels in the given frame.
 
@@ -63,42 +64,42 @@ def paint_square(frame, threshold_value=THRESHOLD_BRIGHT):
     return frame
 
 
-def plot_histogram(img):
+def plot_histogram(img: str) -> None:
     """
     Displays a histogram of pixel intensities for a given image.
 
     :param img: Path to the image file
     """
-    matplotlib.use('TkAgg')
+    use('TkAgg')
     # Compute histogram (256 bins for intensity values 0-255)
     hist = cv2.calcHist([img], [0], None, [256], [0, 256])
 
-    # Plot histogram
     plt.figure(figsize=(8, 5))
     plt.plot(hist, color='black')
     plt.title("Pixel Intensity Histogram")
     plt.xlabel("Intensity Value")
     plt.ylabel("Pixel Count")
     plt.xlim([0, 256])
+    plt.yscale('log')
     plt.grid()
     plt.show()
 
 
-def _detect(image_path: str, mask: Optional[
-    Callable[[Union[cv2.Mat, np.ndarray[Any, np.dtype]]], cv2.Mat]],
-            extracted: Callable[
-                [Union[cv2.Mat, np.ndarray[Any, np.dtype]]], int],
-            criteria: Callable[[int], bool], desc: str) -> (bool, int):
+def _detect(image_path: str, extracted: Callable[
+    [Union[cv2.Mat, np.ndarray[Any, np.dtype]]], int],
+            criterion: Callable[[int], bool], desc: str) \
+        -> tuple[bool, Optional[int]]:
     """
     Helper function that analyzes the image located in `image_path`
     Args:
-        image_path:
-        mask:
-        extracted:
-        criteria:
-        desc:
+        image_path: path of image
+        extracted: function that takes in an image, analyzes it, and returns
+         an `int`
+        criterion: function that takes in an `int` and returns a `bool` based
+         on certain criteria
+        desc: description of the function
 
-    Returns:
+    Returns: the return values of `criterion` and `extracted`
 
     """
     time.sleep(READ_DELAY)
@@ -108,14 +109,8 @@ def _detect(image_path: str, mask: Optional[
     if img is None:
         print(f"[ANALYSIS] Error loading {image_path}")
         return False, None
-    if SHOW_IMG and mask is not None:
-        output = np.zeros_like(img)
-        output[mask(img)] = img[mask(img)]
-        cv2.imshow("High Intensity Pixels", output)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
     data = extracted(img)
-    agitated = criteria(data)
+    agitated = criterion(data)
     print(f"[ANALYSIS] {desc}: {data}")
     if SHOW_IMG:
         paint_square(img2)
@@ -126,14 +121,26 @@ def _detect(image_path: str, mask: Optional[
     return agitated, data
 
 
-def detect_yellow_num(image_path):
-    return _detect(image_path, lambda img: img > THRESHOLD_BRIGHT,
+def detect_yellow_num(image_path: str) -> tuple[bool, int]:
+    """
+    Counts the total number of pixels with intensity greater than
+    `THRESHOLD_BRIGHT`. The image is categorized as "agitated" if that number
+    is greater than `THRESHOLD_NUM_BRIGHT`.
+    """
+    return _detect(image_path,
                    lambda img: np.count_nonzero(img > THRESHOLD_BRIGHT),
                    lambda extracted: extracted > THRESHOLD_NUM_BRIGHT,
                    "Yellow pixels")
 
 
-def normalize_brightness(image_path):
+def normalize_brightness(image_path: str) -> tuple[bool, int]:
+    """
+    Finds the average intensity of all the pixels in the image. Then,
+     count the total number of pixels with intensity `THRESHOLD_NORMALIZED`
+     percent greater than the average. The image is categorized as "agitated" if
+     that number is greater than `THRESHOLD_NORMALIZED_TOTAL`.
+    """
+
     def criteria(img):
         avg = int(np.average(img))
         img -= int(avg)
@@ -141,12 +148,16 @@ def normalize_brightness(image_path):
             [int(avg * (1 + THRESHOLD_NORMALIZED / 100))]), np.array([
             100])))
 
-    return _detect(image_path, None, criteria,
+    return _detect(image_path, criteria,
                    lambda extracted: extracted > THRESHOLD_NORMALIZED_TOTAL,
                    "Normalized intensity")
 
 
-def combin(image_path):
+def combin(image_path: str) -> tuple[bool, Optional[int]]:
+    """
+    The image is categorized as "agitated" if and only if all the functions
+    above categorizes it as "agitated".
+    """
     print(f"[ANALYSIS] Processed: {image_path}")
     a = detect_yellow_num(image_path)
     b = normalize_brightness(image_path)
