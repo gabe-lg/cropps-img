@@ -17,8 +17,8 @@ ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
 DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
 # Constants
-WINDOW_WIDTH, WINDOW_HEIGHT = 1400, 960
-CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1400, 960, 30
+WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
+CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 30
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
@@ -99,7 +99,7 @@ class CameraApp(tk.Tk):
 
         # Create a canvas for displaying the camera feed
         self.canvas = tk.Canvas(self, width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
-        self.canvas.pack()
+        self.canvas.pack(padx=(WINDOW_WIDTH-CAMERA_WIDTH)/2)
 
         self.create_widgets()
 

@@ -25,7 +25,7 @@ COOLDOWN = 5
 
 # A value of 0 hides any popups. A value of 1 shows both the analyzed image
 # and a histogram showing the intensities of every pixel
-SHOW_IMG = 1
+SHOW_IMG = 0
 
 IS_TEST = 0
 
