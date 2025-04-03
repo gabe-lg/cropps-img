@@ -25,6 +25,7 @@ def main():
     ]
 
     # Change the current working directory to where adb works
+    oldpwd = os.getcwd()
     os.chdir(working_directory)
 
     # Execute the command
@@ -33,6 +34,8 @@ def main():
         print(f"Message sent to {phone_number}: {message}")
     except subprocess.CalledProcessError as e:
         print(f"An error occurred: {e}")
+
+    os.chdir(oldpwd)
 
 if __name__== "__main__":
     main()

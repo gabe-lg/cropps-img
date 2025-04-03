@@ -4,6 +4,7 @@ import os
 import platform
 import send_sms
 import time
+import capture_task
 
 from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
@@ -14,9 +15,11 @@ from watchdog.events import FileSystemEventHandler
 # Change to your image directory (normalize slashes for platform!)
 WATCH_DIR = ".\\CROPPS_Training_Dataset" if platform.system() == "Windows" \
     else "./CROPPS_Training_Dataset"
+WATCH_DIR2 = "..\\CROPPS_Training_Dataset"
 SHOW_IMG = 0
 FAILED = 0
 READ_DELAY = 0.1
+COOLDOWN = 5 #cycles
 
 # BRIGHT PIXELS
 THRESHOLD_BRIGHT = 40
@@ -28,6 +31,9 @@ THRESHOLD_NORMALIZED_TOTAL = 50000
 
 
 ### END OF PARAMETERS ###
+
+
+cooldown_tmp = 0
 
 
 # draw #
@@ -159,13 +165,18 @@ def combin(image_path: str) -> tuple[bool, Optional[int]]:
     The image is categorized as "agitated" if and only if all the functions
     above categorizes it as "agitated".
     """
+    global cooldown_tmp
     print(f"[ANALYSIS] Processed: {image_path}")
     a = detect_yellow_num(image_path)
     b = normalize_brightness(image_path)
     res = (a[0] and b[0], None)
     print(f"[ANALYSIS] Agitated: {res[0]}\n")
-    if res[0]:
-        send_sms.main()
+    if cooldown_tmp:
+        cooldown_tmp -= 1
+    elif res[0]:
+            send_sms.main()
+            cooldown_tmp = COOLDOWN
+    print(f"Cooldown: {cooldown_tmp}")
     return res
 
 

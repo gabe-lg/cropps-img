@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import simpledialog
+from tkinter import messagebox
 import threading
 import time
 import cv2
@@ -15,8 +16,8 @@ ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
 DNX64_PATH = 'C:\\Program Files\\DNX64\\DNX64.dll'
 
 # Constants
-WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 960
-CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 30
+WINDOW_WIDTH, WINDOW_HEIGHT = 1400, 960
+CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1400, 960, 30
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
@@ -147,10 +148,20 @@ class CameraApp(tk.Tk):
         self.set_exposure_button = tk.Button(self.button_frame, text="Set Exposure", command=self.apply_exposure)
         self.set_exposure_button.pack(side="left", padx=10)
 
+        # Set SMS information Button
+        # self.set_sms_button = tk.Button(self.button_frame, text="Set SMS Information", command=self.sms_settings)
+        # self.set_sms_button.pack(side="left", padx=10)
+
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit", command=self.quit)
         self.quit_button.pack(side="left", padx=10)
 
+    # def sms_settings():
+    #     popup = tk.Tk()
+    #     popup.wm_title("!")
+    #     label = tk.Label(popup, text="Test")
+
+        
     def quit(self):
         cv2.destroyAllWindows()
         self.stop_analysis()
