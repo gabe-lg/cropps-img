@@ -3,9 +3,9 @@ from tkinter import simpledialog
 import threading
 import time
 import cv2
+import analysis.main
 from pathlib import Path
 from driver.dnx64 import DNX64
-from analysis.main import ObserverWrapper, paint_square
 from capture_task import capture_image, CaptureTask
 from PIL import Image, ImageTk
 
@@ -89,7 +89,7 @@ class CameraApp(tk.Tk):
         self.video_writer = None
         self.analyzing = False
         self.capture_task = CaptureTask()
-        self.observer_obj = ObserverWrapper()
+        self.observer_obj = analysis.main.ObserverWrapper()
 
         # Create a frame for buttons to be packed into
         self.button_frame = tk.Frame(self)
@@ -255,7 +255,7 @@ class CameraApp(tk.Tk):
             command=self.start_analysis
         )
         self.capture_task = CaptureTask()
-        self.observer_obj = ObserverWrapper()
+        self.observer_obj = analysis.main.ObserverWrapper()
 
     def validate_exposure(self, value):
         """Validate that the exposure value is between 100 and 60000."""
@@ -300,7 +300,6 @@ class CameraApp(tk.Tk):
         if ret:
             self.capture_task.set_frame(frame)
             frame_with_watermark = self.overlay_watermark(frame)
-            
             self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
             self.canvas.delete('all')
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
