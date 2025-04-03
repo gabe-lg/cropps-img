@@ -5,8 +5,6 @@ import os
 working_directory = "C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\platform-tools-latest-windows\\platform-tools"
 
 # Get user input for phone number and name
-#phone_number = "+1" + input("Enter the phone number (e.g., 1234567890): ")
-#name = input("Enter the name: ")
 
 
 def set_info(contact_name, contact_phone):
@@ -14,6 +12,7 @@ def set_info(contact_name, contact_phone):
     global phone
     name = contact_name
     phone = contact_phone 
+
 
 def main():
     # Create the message dynamically
