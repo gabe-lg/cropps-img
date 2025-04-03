@@ -136,6 +136,10 @@ class CameraApp(tk.Tk):
         self.stop_record_button = tk.Button(self.button_frame, text="Stop Recording", command=self.stop_recording)
         self.stop_record_button.pack(side="left", padx=10)
 
+        # Show Histogram Button
+        self.show_hist_button = tk.Button(self.button_frame, text="Show Histogram", command=self.show_hist)
+        self.show_hist_button.pack(side="left", padx=10)
+
         # Exposure label and entry
         self.exposure_label_text = tk.StringVar(value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
         self.exposure_label = tk.Label(self.button_frame, textvariable=self.exposure_label_text)
@@ -190,6 +194,12 @@ class CameraApp(tk.Tk):
       
 
         sms_dialog.mainloop()
+
+
+    def show_hist(self):
+        ret, frame = self.camera.read()
+        if ret:
+            analysis.main.plot_histogram(frame)
         
         
     def quit(self):
@@ -340,6 +350,7 @@ class CameraApp(tk.Tk):
         ret, frame = self.camera.read()
         if ret:
             self.capture_task.set_frame(frame)
+            analysis.main.paint_square(frame)
             frame_with_watermark = self.overlay_watermark(frame)
             self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
             self.canvas.delete('all')

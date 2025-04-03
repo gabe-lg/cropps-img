@@ -176,8 +176,7 @@ def combin(image_path: str) -> tuple[bool, Optional[int]]:
     print(f"[ANALYSIS] Agitated: {res[0]}\n")
     if cooldown_tmp:
         cooldown_tmp -= 1
-    elif res[0] and not IS_TEST:
-        send_sms.main()
+    elif res[0] and not IS_TEST and not send_sms.main():
         cooldown_tmp = COOLDOWN
     print(f"Cooldown: {cooldown_tmp}")
     return res
