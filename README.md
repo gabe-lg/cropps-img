@@ -58,7 +58,6 @@ To replicate this project on your computer please do the following:
 ```bash
   ├── /assets/                # Any image/video assets or documentation
   ├── /src/                   # Source code for image analysis, etc.
-      |
       ├── analyzer.py
       ├── app.py
       ├── capture_task.py
