@@ -191,31 +191,50 @@ class CameraApp(tk.Tk):
         sms_dialog = tk.Toplevel(self)
         sms_dialog.title("Enter SMS Details")
 
+        # create label and checkbox for receiving messages
+        receive_sms_var = tk.BooleanVar()
+        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?")
+        receive_sms_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+        receive_sms_checkbox = tk.Checkbutton(sms_dialog, variable=receive_sms_var)
+        receive_sms_checkbox.grid(row=0, column=2, padx=10, pady=10)
+
         # create label and input for the name
         name_label = tk.Label(sms_dialog, text="Enter name: ")
-        name_label.grid(row=0, column=0, padx=10, pady=10)
+        name_label.grid(row=1, column=0, padx=10, pady=10)
         name_entry = tk.Entry(sms_dialog)
-        name_entry.grid(row=0, column=1, padx=10, pady=10)
+        name_entry.grid(row=1, column=1, padx=10, pady=10)
 
         # create label and input for the phone number
         contact_label = tk.Label(sms_dialog, text="Enter phone number: ")
-        contact_label.grid(row=1, column=0, padx=10, pady=10)
+        contact_label.grid(row=2, column=0, padx=10, pady=10)
         contact_entry = tk.Entry(sms_dialog)
-        contact_entry.grid(row=1, column=1, padx=10, pady=10)
+        contact_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        # Label for displaying error messages
+        error_label = tk.Label(sms_dialog, text="", fg="red")
+        error_label.grid(row=3, column=0, columnspan=2, padx=12, pady=10)
 
         def send_info():
             name = name_entry.get()
             contact = contact_entry.get()
 
-            if name and contact:
-                self.sms_sender.set_info(name, contact)
-                sms_dialog.destroy()
+            # Only set contact info if the checkbox is checked
+            if receive_sms_var.get():
+                if not name or not contact:
+                    error_label.config(text="Please provide a name and phone number.")
+                else:
+                    self.sms_sender.set_info(name, contact)
+                    sms_dialog.destroy()
             else:
-                print("Both values are required")
+                error_label.config(text="Please check the box and provide all details.")
 
-        # create a save button
+        # Create Save button
         save_button = tk.Button(sms_dialog, text="Save", command=send_info)
-        save_button.grid(row=2, columnspan=2, pady=10)
+        save_button.grid(row=4, column=0, padx=10, pady=10)
+
+        # Create Cancel button
+        cancel_button = tk.Button(sms_dialog, text="Cancel", command=sms_dialog.destroy)
+        cancel_button.grid(row=4, column=1, padx=10, pady=10)
 
         sms_dialog.mainloop()
 
