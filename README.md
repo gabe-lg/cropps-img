@@ -20,8 +20,9 @@ This project aims to tackle the challenge of sustainable food production in the 
 <!-- SOFTWARE TOOLS INFO -->
 ## Software Tools
 - **Dino Lite SDK (https://www.dino-lite.com/download06.php)** <br>
-  A software development kit for the Dino Lite microscrope that allows for control of the the microsope through C#, C++ and Visual Basic code. Please use the 64 bit version since it is compatible with the 
-  python module mentioned next. 
+  A software development kit for the Dino Lite microscrope that allows for control of the the microsope through C#, C++ and Visual Basic code. Please use the 64    bit version since it is compatible with the 
+  python module mentioned next.
+  
 - **Dino Lite SDK Python Wrapper: https://github.com/dino-lite/DNX64-Python-API**<br>
   Python Wrapper that works with the Dino Lite SDK and contains multiple python function to capture images, set microscope exposure, start recording etc.
 - **Shell MS: https://github.com/try2codesecure/ShellMS?tab=readme-ov-file**<br>
@@ -47,7 +48,7 @@ To replicate this project on your computer please do the following:
 
 <!-- OUTPUT OF MAIN.PY -->
 ## Output 
-Once the main.py file is run you should see that following GUI open up<br>
+Once the main.py file is run you should see the following GUIs open up<br>
 <img src="/assets/demo.jpg" alt="demo"> <br>
 The buttons on the GUI have the following functionality:
 - **Print AMR**: prints the Automatic Magnification Reading (AMR)
