@@ -14,8 +14,8 @@ from watchdog.events import FileSystemEventHandler
 class Analyzer:
     def __init__(self):
         # Change to your image directory (normalize slashes for platform!)
-        self.dir = ".\\captured_data" if platform.system() == "Windows" \
-            else "./captured_data"
+        self.dir = ".\\assets\\captured_data" if platform.system() == "Windows" \
+            else "./assets/captured_data"
 
         # the file cannot be read immediately after saving. Controls the number of
         # seconds to wait before the file is read

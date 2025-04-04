@@ -10,8 +10,8 @@ from PIL import Image, ImageTk
 from src import sms_sender
 
 # Paths
-WATERMARK_PATH = Path(__file__).parent / "assets" / "cropps_watermark.png"
-ICO_PATH = Path(__file__).parent / "assets" / "CROPPS_vertical_logo.png"
+WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark.png"
+ICO_PATH = Path(__file__).parent.parent / "assets" / "CROPPS_vertical_logo.png"
 DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
 # Constants
