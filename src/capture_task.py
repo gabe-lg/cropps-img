@@ -4,8 +4,10 @@ import threading
 import platform
 import cv2
 
-SCREENSHOT_DIRECTORY = ".\\captured_data\\" if platform.system() == "Windows" else "./captured_data/"
+SCREENSHOT_DIRECTORY = ".\\assets\\captured_data\\" if (
+            platform.system() == "Windows") else "./assets/captured_data/"
 CAPTURE_INTERVAL = 2
+
 
 class StoppableThread(threading.Thread):
     """Thread class with a stop() method. The thread itself has to check
@@ -20,6 +22,7 @@ class StoppableThread(threading.Thread):
 
     def stopped(self):
         return self._stop_event.is_set()
+
 
 class CaptureTask(StoppableThread):
     """Thread that captures an image every `CAPTURE_INTERVAL` seconds."""
@@ -36,6 +39,7 @@ class CaptureTask(StoppableThread):
 
     def set_frame(self, frame):
         self.frame = frame
+
 
 def capture_image(frame):
     """Capture an image and save it in the current working directory."""
