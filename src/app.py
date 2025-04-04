@@ -1,13 +1,13 @@
-import tkinter as tk
+import cv2
 import threading
 import time
-import cv2
+import tkinter as tk
 import src.analyzer
+import src.cutter_control
 from pathlib import Path
-from src.driver_dnx64 import DNX64
-from src.capture_task import capture_image, CaptureTask
 from PIL import Image, ImageTk
-from src import sms_sender
+from src.capture_task import capture_image, CaptureTask
+from src.driver_dnx64 import DNX64
 
 # Paths
 WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark.png"
@@ -387,6 +387,7 @@ class CameraApp(tk.Tk):
 
 
 def main():
+    threading.Thread(target=src.cutter_control.cutter_app).start()
     app = CameraApp()
     app.update_camera_feed()  # Start the camera feed update loop
     app.mainloop()
