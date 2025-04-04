@@ -12,6 +12,7 @@ from src.driver_dnx64 import DNX64
 # Paths
 WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark.png"
 ICO_PATH = Path(__file__).parent.parent / "assets" / "CROPPS_vertical_logo.png"
+BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
 # Constants
@@ -190,28 +191,29 @@ class CameraApp(tk.Tk):
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
         sms_dialog.title("Enter SMS Details")
+        sms_dialog.config(bg="white") 
 
         # create label and checkbox for receiving messages
         receive_sms_var = tk.BooleanVar()
-        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?")
+        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?", font=("TkTextFont", 18), bg="white")
         receive_sms_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
-        receive_sms_checkbox = tk.Checkbutton(sms_dialog, variable=receive_sms_var)
+        receive_sms_checkbox = tk.Checkbutton(sms_dialog, variable=receive_sms_var, bg="white")
         receive_sms_checkbox.grid(row=0, column=2, padx=10, pady=10)
 
         # create label and input for the name
-        name_label = tk.Label(sms_dialog, text="Enter name: ")
+        name_label = tk.Label(sms_dialog, text="Enter name: ", font=("TkTextFont", 18), bg="white")
         name_label.grid(row=1, column=0, padx=10, pady=10)
         name_entry = tk.Entry(sms_dialog)
         name_entry.grid(row=1, column=1, padx=10, pady=10)
 
         # create label and input for the phone number
-        contact_label = tk.Label(sms_dialog, text="Enter phone number: ")
+        contact_label = tk.Label(sms_dialog, text="Enter phone number: ", font=("TkTextFont", 18), bg="white")
         contact_label.grid(row=2, column=0, padx=10, pady=10)
-        contact_entry = tk.Entry(sms_dialog)
+        contact_entry = tk.Entry(sms_dialog, show="*")
         contact_entry.grid(row=2, column=1, padx=10, pady=10)
 
         # Label for displaying error messages
-        error_label = tk.Label(sms_dialog, text="", fg="red")
+        error_label = tk.Label(sms_dialog, text="", fg="red", font=("TkTextFont", 18), bg="white")
         error_label.grid(row=3, column=0, columnspan=2, padx=12, pady=10)
 
         def send_info():
@@ -235,6 +237,11 @@ class CameraApp(tk.Tk):
         # Create Cancel button
         cancel_button = tk.Button(sms_dialog, text="Cancel", command=sms_dialog.destroy)
         cancel_button.grid(row=4, column=1, padx=10, pady=10)
+
+        image = tk.PhotoImage(file=BG_PATH)  # Change to the correct path to your image
+        image_label = tk.Label(sms_dialog, image=image)
+        image_label.grid(row=5, column=0, columnspan=2, padx=2, pady=10)  # Place the image under the buttons
+        image_label.image = image  # Keep a reference to the image to prevent it from being garbage collected
 
         sms_dialog.mainloop()
 

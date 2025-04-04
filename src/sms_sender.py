@@ -24,7 +24,7 @@ class SmsSender:
         """
         if self.name is not None and self.phone is not None:
             # Create the message dynamically
-            message = f"Hi {self.name}, the plant has been wounded"
+            message = f"Hi {self.name}, I’m hurt! Please help!"
 
             # Define the adb command to be executed
             command = [
