@@ -57,13 +57,13 @@ To replicate this project on your computer please do the following:
 ## Directory Structure 
 ```bash
   ├── /assets/                # Any image/video assets or documentation
-  ├── /src/                   # Source code for image analysis, etc.
-      ├── analyzer.py
-      ├── app.py
-      ├── capture_task.py
-      ├── cutter_control.py
-      ├── driver_dnx64.py
-      ├── sms_sender.py 
+  ├── /src/                   # Source folder
+      ├── analyzer.py         # Image analysis code 
+      ├── app.py              # Microscope GUI
+      ├── capture_task.py     # Thread class to capture images at defined interval
+      ├── cutter_control.py   # Cutter Control GUI
+      ├── driver_dnx64.py     # DNX64 file with functions
+      ├── sms_sender.py       # Send SMS using Shell MS
   ├── /tests/                 # Test functions for image analysis
   ├── main.py                 # Main script for running the system
   ├── requirements.txt        # Required Python libraries
