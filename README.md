@@ -32,19 +32,43 @@ This project aims to tackle the challenge of sustainable food production in the 
 
 
 <!-- GETTING STARTED -->
-## Getting Started 
+## Installation Instructions 
 To replicate this project on your computer please do the following:
-1. Download all the software Tools mentioned above
-2. Keep track of the paths of the following files/folders to define in the code:
-   - DNX64.dll file which is part of the Dino Lite SDK download
-   - platform-windows folder of ADB
-3. Git clone the repo https://github.com/gabe-lg/cropps-img.git
-4. Install all the libraries mentioned in requirements.txt by running the pip install -r requirements.txt command in the terminal 
-5. In main.py replace the DNX64_PATH with the path to your DNX64.dll file
-6. In send_sms.py replace working_directory with the path to your platform-windows folder
-7. Connect the Dino Lite microscope to your computer via USB. **Note:** You might need to disable the built in camera on you computer to access the microscope view
-8. Connect an android phone to the computer via an appropriate cable and click "Allow" if a popup appears for USB Debugging
-9. Run the main.py file using the command python main.py in the terminal
+1. Download and install the necessary tools and dependencies:
+   - Dino Lite SDK: [Download Link](https://www.dino-lite.com/download06.php)
+   - Dino Lite SDK Python Wrapper: [GitHub Link](https://github.com/dino-lite/DNX64-Python-API)
+   - Shell MS: [GitHub Link](https://github.com/try2codesecure/ShellMS)
+   - ADB for Windows: [Download Link](https://dl.google.com/android/repository/platform-tools-latest-windows.zip)
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/gabe-lg/cropps-img.git
+4. Install Python dependencies: 
+   ```bash
+    pip install -r requirements.txt 
+5. Set the paths for DNX64.dll and the ADB platform-windows folder in the respective files (main.py and send_sms.py).
+6. Connect the devices:
+   - Connect the Dino Lite microscope to your computer.
+   - Connect the Android phone via USB and enable USB Debugging. **Note:** You might need to disable the built in camera on you computer to access the microscope view
+7. Run the application:
+   ```bash
+   python main.py
+
+<!-- DIRECTORY STRUCTURE -->
+## Directory Structure 
+```bash
+  ├── /assets/                # Any image/video assets or documentation
+  ├── /src/                   # Source code for image analysis, etc.
+      |
+      ├── analyzer.py
+      ├── app.py
+      ├── capture_task.py
+      ├── cutter_control.py
+      ├── driver_dnx64.py
+      ├── sms_sender.py 
+  ├── /tests/                 # Test functions for image analysis
+  ├── main.py                 # Main script for running the system
+  ├── requirements.txt        # Required Python libraries
+```
 
 <!-- OUTPUT OF MAIN.PY -->
 ## Output 
