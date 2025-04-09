@@ -40,13 +40,13 @@ class Analyzer:
 
         ### Thresholds for analysis - see functions below for specifications ###
         # BRIGHT PIXELS
-        self.threshold_bright = 40  # intensity ranges from 0 to 255
-        self.threshold_num_bright = 7000  # 1228800 (1280 * 960) pixels in an
+        self.threshold_bright = 30  # intensity ranges from 0 to 255
+        self.threshold_num_bright = 4000  # 1228800 (1280 * 960) pixels in an
         # image
 
         # NORMALIZED INTENSITY
         self.threshold_normalized = 5
-        self.threshold_normalized_total = 50000
+        self.threshold_normalized_total = 6000
 
     def testing_init(self):
         self.dir = "../assets/CROPPS_Training_Dataset"
