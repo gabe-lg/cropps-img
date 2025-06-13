@@ -2,4 +2,5 @@ matplotlib
 numpy
 opencv_python
 pillow
+requests
 watchdog

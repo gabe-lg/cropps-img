@@ -4,14 +4,16 @@ import time
 import tkinter as tk
 import src.analyzer
 import src.cutter_control
+import src.loggernet
 from pathlib import Path
 from PIL import Image, ImageTk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from src.capture_task import capture_image, CaptureTask
 from src.driver_dnx64 import DNX64
 
 # Paths
 WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark.png"
-ICO_PATH = Path(__file__).parent.parent / "assets" / "CROPPS_vertical_logo.png"
+ICO_PATH = "./assets/CROPPS_vertical_logo.png"
 BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
@@ -82,7 +84,8 @@ class CameraApp(tk.Tk):
         super().__init__()
         self.title("CROPPS Camera Control")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        self.iconphoto(False, tk.PhotoImage(file=ICO_PATH))
+        self.icon = tk.PhotoImage(file=ICO_PATH)
+        self.iconphoto(False, self.icon)
         # self.iconphoto(False, ICO_PATH)
 
         microscope.SetVideoDeviceIndex(
@@ -96,7 +99,9 @@ class CameraApp(tk.Tk):
         self.analyzing = False
         self.capture_task = CaptureTask()
         self.analyzer = src.analyzer.Analyzer()
+        self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
+        self.loggernet = src.loggernet.Loggernet()
         self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
                                                          self.sms_sender)
 
@@ -105,8 +110,20 @@ class CameraApp(tk.Tk):
         self.button_frame.pack(side="bottom", pady=10)
 
         # Create a canvas for displaying the camera feed
-        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
-        self.canvas.pack(padx=(WINDOW_WIDTH - CAMERA_WIDTH) / 2)
+        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2, height=WINDOW_HEIGHT)
+        self.canvas.pack(side="left")
+
+        # Create a canvas for displaying the loggernet graph
+
+        frame = tk.Frame(self)
+        frame.pack(anchor="nw", padx=10, pady=10)
+        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig, master=frame)
+        self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
+
+        frame = tk.Frame(self)
+        frame.pack(anchor="sw", padx=10, pady=10)
+        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig, master=frame)
+        self.histogram_canvas.get_tk_widget().pack(anchor="sw")
 
         self.create_widgets()
 
@@ -191,11 +208,12 @@ class CameraApp(tk.Tk):
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
         sms_dialog.title("Enter SMS Details")
-        sms_dialog.config(bg="white") 
+        sms_dialog.config(bg="white")
 
         # create label and checkbox for receiving messages
         receive_sms_var = tk.BooleanVar()
-        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?", font=("TkTextFont", 18), bg="white")
+        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?",
+                                     font=("TkTextFont", 18), bg="white")
         receive_sms_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
         receive_sms_checkbox = tk.Checkbutton(sms_dialog, variable=receive_sms_var, bg="white")
         receive_sms_checkbox.grid(row=0, column=2, padx=10, pady=10)
@@ -408,8 +426,14 @@ class CameraApp(tk.Tk):
             self.canvas.delete('all')
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
+        # update loggernet graph
+        self.loggernet.update(0)  # updates the data, changes plot
+        self.loggernet_canvas.draw_idle() if self.loggernet_canvas else print("loggernet is none")
+        self.histogram.update(frame)
+        self.histogram_canvas.draw_idle() if self.histogram_canvas else print("histogram is none")
+
         # Update every 10 ms
-        self.after(10, self.update_camera_feed)
+        self.after(50, self.update_camera_feed)
 
 
 def main():
