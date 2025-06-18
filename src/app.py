@@ -1,6 +1,3 @@
-import sys
-import tkinter
-
 import cv2
 import threading
 import time
@@ -157,47 +154,6 @@ class CameraApp(tk.Tk):
 
     def create_widgets(self):
         """Create all the GUI buttons."""
-        if microscope:
-            # AMR Button
-            self.amr_button = tk.Button(self.button_frame, text="Print AMR",
-                                        command=self.print_amr)
-            self.amr_button.pack(side="left", padx=10)
-
-            # LED Flash Button
-            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
-                                          command=self.flash_leds)
-            self.flash_button.pack(side="left", padx=10)
-
-            # FOV Button
-            self.fov_button = tk.Button(self.button_frame,
-                                        text="Print FOV (mm)",
-                                        command=self.print_fov)
-            self.fov_button.pack(side="left", padx=10)
-
-            # Analysis buttons
-            self.start_analysis_button = tk.Button(self.button_frame,
-                                                   text="Start Analysis",
-                                                   fg="darkgreen",
-                                                   command=self.start_analysis)
-            self.start_analysis_button.pack(side="left", padx=10)
-
-            # Exposure label and entry
-            self.exposure_label_text = tk.StringVar(
-                value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
-            self.exposure_label = tk.Label(self.button_frame,
-                                           textvariable=self.exposure_label_text)
-            self.exposure_label.pack(side="left", padx=10)
-
-            self.exposure_entry = tk.Entry(self.button_frame)
-            self.exposure_entry.pack(side="left", padx=10)
-            self.exposure_entry.bind("<Return>",
-                                     lambda event: self.apply_exposure())
-
-            # Set Exposure Button
-            self.set_exposure_button = tk.Button(self.button_frame,
-                                                 text="Set Exposure",
-                                                 command=self.apply_exposure)
-            self.set_exposure_button.pack(side="left", padx=10)
 
         # Capture Button
         self.capture_button = tk.Button(self.button_frame, text="Capture Image",
@@ -216,6 +172,13 @@ class CameraApp(tk.Tk):
                                             command=self.stop_recording)
         self.stop_record_button.pack(side="left", padx=10)
 
+        # Analysis buttons
+        self.start_analysis_button = tk.Button(self.button_frame,
+                                               text="Start Analysis",
+                                               fg="darkgreen",
+                                               command=self.start_analysis)
+        self.start_analysis_button.pack(side="left", padx=10)
+
         # # Show Histogram Button
         # self.show_hist_button = tk.Button(self.button_frame,
         #                                   text="Show Histogram",
@@ -226,6 +189,41 @@ class CameraApp(tk.Tk):
         self.set_sms_button = tk.Button(self.button_frame, text="SMS Info",
                                         command=self.sms_info)
         self.set_sms_button.pack(side="left", padx=10)
+
+        if microscope:
+            # AMR Button
+            self.amr_button = tk.Button(self.button_frame, text="Print AMR",
+                                        command=self.print_amr)
+            self.amr_button.pack(side="left", padx=10)
+
+            # LED Flash Button
+            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
+                                          command=self.flash_leds)
+            self.flash_button.pack(side="left", padx=10)
+
+            # FOV Button
+            self.fov_button = tk.Button(self.button_frame,
+                                        text="Print FOV (mm)",
+                                        command=self.print_fov)
+            self.fov_button.pack(side="left", padx=10)
+
+            # Exposure label and entry
+            self.exposure_label_text = tk.StringVar(
+                value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
+            self.exposure_label = tk.Label(self.button_frame,
+                                           textvariable=self.exposure_label_text)
+            self.exposure_label.pack(side="left", padx=10)
+
+            self.exposure_entry = tk.Entry(self.button_frame)
+            self.exposure_entry.pack(side="left", padx=10)
+            self.exposure_entry.bind("<Return>",
+                                     lambda event: self.apply_exposure())
+
+            # Set Exposure Button
+            self.set_exposure_button = tk.Button(self.button_frame,
+                                                 text="Set Exposure",
+                                                 command=self.apply_exposure)
+            self.set_exposure_button.pack(side="left", padx=10)
 
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
@@ -465,7 +463,7 @@ class CameraApp(tk.Tk):
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # update loggernet graph
-        self.loggernet.update(0)  # updates the data, changes plot
+        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
         self.loggernet_canvas.draw_idle() if self.loggernet_canvas else print(
             "loggernet is none")
         self.histogram.update(frame)
