@@ -1,3 +1,6 @@
+import sys
+import tkinter
+
 import cv2
 import threading
 import time
@@ -86,10 +89,12 @@ class CameraApp(tk.Tk):
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
-        # self.iconphoto(False, ICO_PATH)
 
-        microscope.SetVideoDeviceIndex(
-            DEVICE_INDEX)  # Set index of video device. Call before Init().
+        try:
+            microscope.SetVideoDeviceIndex(
+                DEVICE_INDEX)  # Set index of video device. Call before Init().
+        except OSError:
+            print("[DRIVER] Error: Video device not found. Please check your index.")
         microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
         self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
         self.camera = initialize_camera()
@@ -437,7 +442,7 @@ class CameraApp(tk.Tk):
 
 
 def main():
-    threading.Thread(target=src.cutter_control.cutter_app).start()
     app = CameraApp()
+    threading.Thread(target=src.cutter_control.cutter_app).start()
     app.update_camera_feed()  # Start the camera feed update loop
     app.mainloop()

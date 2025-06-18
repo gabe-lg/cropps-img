@@ -13,7 +13,7 @@ class Loggernet:
         self.INTERVAL = 0.1  # time (in s) to wait before retrieving the next data point
         self.MAX_DATA = 30  # max number of data points to show on graph
         self.TITLE = "Title"
-        self.X_LABEL = "Time (s)"
+        self.X_LABEL = "Time"
         self.Y_LABEL = "Value"
 
         # Authentication credentials
@@ -35,16 +35,22 @@ class Loggernet:
                                    label=self.labels[i], color=self.colors[i])[0]
                       for i in range(3)]
 
+        self.ax.set_title(self.TITLE)
+        self.ax.set_xlabel(self.X_LABEL)
+        self.ax.set_ylabel(self.Y_LABEL)
+        self.ax.set_xlim(self.MAX_DATA, 0)
+        self.ax.set_ylim(-1000, 0)
+        self.ax.grid(True)
+
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         self.fig.canvas.mpl_connect('key_press_event', self.on_click)
         self.fig.canvas.mpl_connect('close_event', self.on_close)
 
         threading.Thread(target=self.fetch_latest, daemon=True).start()
-        self.init()
 
     def fetch_latest(self):
         with open('./assets/data.csv', 'w', newline='') as file:
-            csv.writer(file).writerows([[self.X_LABEL] + self.labels])
+            csv.writer(file).writerows([[self.X_LABEL] + self.labels + ["Plant wounded"]])
 
         while not self.stop_event.is_set():
             url = 'http://192.168.66.1/cr6'
@@ -81,21 +87,10 @@ class Loggernet:
                 self.lines[:] = [i + 1 for i in self.lines]
 
             with open('./assets/data.csv', 'a', newline='') as file:
-                csv.writer(file).writerows([[t] + d[:3]])
-                if self.lines and self.lines[-1] == 1:
-                    csv.writer(file).writerows([["--- Plant wounded ---"]])
+                csv.writer(file).writerows([[t] + d[:3] + [1 if self.lines and self.lines[-1] == 1 else 0]])
             time.sleep(self.INTERVAL)
         print("Data fetching stopped.")
         self.stop_event.set()
-
-    def init(self):
-        self.ax.set_title(self.TITLE)
-        self.ax.set_xlabel(self.X_LABEL)
-        self.ax.set_ylabel(self.Y_LABEL)
-        self.ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.xticks(rotation=45)
-        plt.gca().invert_xaxis()
-        return self.graph
 
     def update(self, _):
         if self.stop_event.is_set():
@@ -135,7 +130,7 @@ class Loggernet:
         plt.close('all')
 
     def run(self):
-        ani = animation.FuncAnimation(self.fig, self.update, init_func=self.init,
+        ani = animation.FuncAnimation(self.fig, self.update,
                                       interval=self.INTERVAL, cache_frame_data=False)
         plt.show()
         print("Program exiting.")
