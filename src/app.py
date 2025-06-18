@@ -1,3 +1,6 @@
+import sys
+import tkinter
+
 import cv2
 import threading
 import time
@@ -12,7 +15,8 @@ from src.capture_task import capture_image, CaptureTask
 from src.driver_dnx64 import DNX64
 
 # Paths
-WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark.png"
+WATERMARK_PATH = Path(
+    __file__).parent.parent / "assets" / "cropps_watermark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
 BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
@@ -35,8 +39,21 @@ def threaded(func):
     return wrapper
 
 
-# Initialize microscope
-microscope = DNX64(DNX64_PATH)
+def get_microscope(dnx64_path):
+    """Initialize microscope"""
+    global microscope
+    try:
+        microscope = DNX64(dnx64_path)
+    except FileNotFoundError:
+        dnx64_path = input(
+            'The DNX64 path is not valid. Please enter your DNX64 path, or press enter to skip: ')
+        if dnx64_path:
+            get_microscope(dnx64_path)
+        else:
+            microscope = None
+
+
+get_microscope(DNX64_PATH)
 
 
 def set_exposure(exposure):
@@ -86,14 +103,19 @@ class CameraApp(tk.Tk):
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
-        # self.iconphoto(False, ICO_PATH)
 
-        microscope.SetVideoDeviceIndex(
-            DEVICE_INDEX)  # Set index of video device. Call before Init().
-        microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
-        self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
+        if microscope:
+            try:
+                microscope.SetVideoDeviceIndex(
+                    DEVICE_INDEX)  # Set index of video device. Call before Init().
+            except OSError:
+                print(
+                    "[DRIVER] Error: Video device not found. Please check your index.")
+
+            microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
+            self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
+
         self.camera = initialize_camera()
-
         self.recording = False
         self.video_writer = None
         self.analyzing = False
@@ -110,19 +132,22 @@ class CameraApp(tk.Tk):
         self.button_frame.pack(side="bottom", pady=10)
 
         # Create a canvas for displaying the camera feed
-        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2, height=WINDOW_HEIGHT)
+        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
+                                height=WINDOW_HEIGHT)
         self.canvas.pack(side="left")
 
         # Create a canvas for displaying the loggernet graph
 
         frame = tk.Frame(self)
         frame.pack(anchor="nw", padx=10, pady=10)
-        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig, master=frame)
+        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+                                                  master=frame)
         self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
 
         frame = tk.Frame(self)
         frame.pack(anchor="sw", padx=10, pady=10)
-        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig, master=frame)
+        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+                                                  master=frame)
         self.histogram_canvas.get_tk_widget().pack(anchor="sw")
 
         self.create_widgets()
@@ -132,32 +157,52 @@ class CameraApp(tk.Tk):
 
     def create_widgets(self):
         """Create all the GUI buttons."""
-        # AMR Button
-        self.amr_button = tk.Button(self.button_frame, text="Print AMR",
-                                    command=self.print_amr)
-        self.amr_button.pack(side="left", padx=10)
+        if microscope:
+            # AMR Button
+            self.amr_button = tk.Button(self.button_frame, text="Print AMR",
+                                        command=self.print_amr)
+            self.amr_button.pack(side="left", padx=10)
 
-        # LED Flash Button
-        self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
-                                      command=self.flash_leds)
-        self.flash_button.pack(side="left", padx=10)
+            # LED Flash Button
+            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
+                                          command=self.flash_leds)
+            self.flash_button.pack(side="left", padx=10)
 
-        # FOV Button
-        self.fov_button = tk.Button(self.button_frame, text="Print FOV (mm)",
-                                    command=self.print_fov)
-        self.fov_button.pack(side="left", padx=10)
+            # FOV Button
+            self.fov_button = tk.Button(self.button_frame,
+                                        text="Print FOV (mm)",
+                                        command=self.print_fov)
+            self.fov_button.pack(side="left", padx=10)
+
+            # Analysis buttons
+            self.start_analysis_button = tk.Button(self.button_frame,
+                                                   text="Start Analysis",
+                                                   fg="darkgreen",
+                                                   command=self.start_analysis)
+            self.start_analysis_button.pack(side="left", padx=10)
+
+            # Exposure label and entry
+            self.exposure_label_text = tk.StringVar(
+                value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
+            self.exposure_label = tk.Label(self.button_frame,
+                                           textvariable=self.exposure_label_text)
+            self.exposure_label.pack(side="left", padx=10)
+
+            self.exposure_entry = tk.Entry(self.button_frame)
+            self.exposure_entry.pack(side="left", padx=10)
+            self.exposure_entry.bind("<Return>",
+                                     lambda event: self.apply_exposure())
+
+            # Set Exposure Button
+            self.set_exposure_button = tk.Button(self.button_frame,
+                                                 text="Set Exposure",
+                                                 command=self.apply_exposure)
+            self.set_exposure_button.pack(side="left", padx=10)
 
         # Capture Button
         self.capture_button = tk.Button(self.button_frame, text="Capture Image",
                                         command=self.capture)
         self.capture_button.pack(side="left", padx=10)
-
-        # Analysis buttons
-        self.start_analysis_button = tk.Button(self.button_frame,
-                                               text="Start Analysis",
-                                               fg="darkgreen",
-                                               command=self.start_analysis)
-        self.start_analysis_button.pack(side="left", padx=10)
 
         # Start Recording Button
         self.start_record_button = tk.Button(self.button_frame,
@@ -171,29 +216,11 @@ class CameraApp(tk.Tk):
                                             command=self.stop_recording)
         self.stop_record_button.pack(side="left", padx=10)
 
-        # Show Histogram Button
-        self.show_hist_button = tk.Button(self.button_frame,
-                                          text="Show Histogram",
-                                          command=self.show_hist)
-        self.show_hist_button.pack(side="left", padx=10)
-
-        # Exposure label and entry
-        self.exposure_label_text = tk.StringVar(
-            value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
-        self.exposure_label = tk.Label(self.button_frame,
-                                       textvariable=self.exposure_label_text)
-        self.exposure_label.pack(side="left", padx=10)
-
-        self.exposure_entry = tk.Entry(self.button_frame)
-        self.exposure_entry.pack(side="left", padx=10)
-        self.exposure_entry.bind("<Return>",
-                                 lambda event: self.apply_exposure())
-
-        # Set Exposure Button
-        self.set_exposure_button = tk.Button(self.button_frame,
-                                             text="Set Exposure",
-                                             command=self.apply_exposure)
-        self.set_exposure_button.pack(side="left", padx=10)
+        # # Show Histogram Button
+        # self.show_hist_button = tk.Button(self.button_frame,
+        #                                   text="Show Histogram",
+        #                                   command=self.show_hist)
+        # self.show_hist_button.pack(side="left", padx=10)
 
         # Set SMS information Button
         self.set_sms_button = tk.Button(self.button_frame, text="SMS Info",
@@ -212,26 +239,32 @@ class CameraApp(tk.Tk):
 
         # create label and checkbox for receiving messages
         receive_sms_var = tk.BooleanVar()
-        receive_sms_label = tk.Label(sms_dialog, text="Would you like to receive text messages from a plant?",
+        receive_sms_label = tk.Label(sms_dialog,
+                                     text="Would you like to receive text messages from a plant?",
                                      font=("TkTextFont", 18), bg="white")
         receive_sms_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
-        receive_sms_checkbox = tk.Checkbutton(sms_dialog, variable=receive_sms_var, bg="white")
+        receive_sms_checkbox = tk.Checkbutton(sms_dialog,
+                                              variable=receive_sms_var,
+                                              bg="white")
         receive_sms_checkbox.grid(row=0, column=2, padx=10, pady=10)
 
         # create label and input for the name
-        name_label = tk.Label(sms_dialog, text="Enter name: ", font=("TkTextFont", 18), bg="white")
+        name_label = tk.Label(sms_dialog, text="Enter name: ",
+                              font=("TkTextFont", 18), bg="white")
         name_label.grid(row=1, column=0, padx=10, pady=10)
         name_entry = tk.Entry(sms_dialog)
         name_entry.grid(row=1, column=1, padx=10, pady=10)
 
         # create label and input for the phone number
-        contact_label = tk.Label(sms_dialog, text="Enter phone number: ", font=("TkTextFont", 18), bg="white")
+        contact_label = tk.Label(sms_dialog, text="Enter phone number: ",
+                                 font=("TkTextFont", 18), bg="white")
         contact_label.grid(row=2, column=0, padx=10, pady=10)
         contact_entry = tk.Entry(sms_dialog, show="*")
         contact_entry.grid(row=2, column=1, padx=10, pady=10)
 
         # Label for displaying error messages
-        error_label = tk.Label(sms_dialog, text="", fg="red", font=("TkTextFont", 18), bg="white")
+        error_label = tk.Label(sms_dialog, text="", fg="red",
+                               font=("TkTextFont", 18), bg="white")
         error_label.grid(row=3, column=0, columnspan=2, padx=12, pady=10)
 
         def send_info():
@@ -241,24 +274,29 @@ class CameraApp(tk.Tk):
             # Only set contact info if the checkbox is checked
             if receive_sms_var.get():
                 if not name or not contact:
-                    error_label.config(text="Please provide a name and phone number.")
+                    error_label.config(
+                        text="Please provide a name and phone number.")
                 else:
                     self.sms_sender.set_info(name, contact)
                     sms_dialog.destroy()
             else:
-                error_label.config(text="Please check the box and provide all details.")
+                error_label.config(
+                    text="Please check the box and provide all details.")
 
         # Create Save button
         save_button = tk.Button(sms_dialog, text="Save", command=send_info)
         save_button.grid(row=4, column=0, padx=10, pady=10)
 
         # Create Cancel button
-        cancel_button = tk.Button(sms_dialog, text="Cancel", command=sms_dialog.destroy)
+        cancel_button = tk.Button(sms_dialog, text="Cancel",
+                                  command=sms_dialog.destroy)
         cancel_button.grid(row=4, column=1, padx=10, pady=10)
 
-        image = tk.PhotoImage(file=BG_PATH)  # Change to the correct path to your image
+        image = tk.PhotoImage(
+            file=BG_PATH)  # Change to the correct path to your image
         image_label = tk.Label(sms_dialog, image=image)
-        image_label.grid(row=5, column=0, columnspan=2, padx=2, pady=10)  # Place the image under the buttons
+        image_label.grid(row=5, column=0, columnspan=2, padx=2,
+                         pady=10)  # Place the image under the buttons
         image_label.image = image  # Keep a reference to the image to prevent it from being garbage collected
 
         sms_dialog.mainloop()
@@ -428,16 +466,18 @@ class CameraApp(tk.Tk):
 
         # update loggernet graph
         self.loggernet.update(0)  # updates the data, changes plot
-        self.loggernet_canvas.draw_idle() if self.loggernet_canvas else print("loggernet is none")
+        self.loggernet_canvas.draw_idle() if self.loggernet_canvas else print(
+            "loggernet is none")
         self.histogram.update(frame)
-        self.histogram_canvas.draw_idle() if self.histogram_canvas else print("histogram is none")
+        self.histogram_canvas.draw_idle() if self.histogram_canvas else print(
+            "histogram is none")
 
         # Update every 10 ms
         self.after(50, self.update_camera_feed)
 
 
 def main():
-    threading.Thread(target=src.cutter_control.cutter_app).start()
     app = CameraApp()
+    threading.Thread(target=src.cutter_control.cutter_app).start()
     app.update_camera_feed()  # Start the camera feed update loop
     app.mainloop()
