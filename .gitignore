@@ -1,6 +1,4 @@
-**/__pycache__git 
-sms/env.cpp
-sms/main
+**/__pycache__git
 .env*
 .idea
 .venv
@@ -10,3 +8,4 @@ sms/main
 *.pyc
 
 !assets/*
+assets/data.csv
