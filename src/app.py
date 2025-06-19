@@ -6,6 +6,7 @@ import tkinter.simpledialog, tkinter.messagebox
 import src.analyzer
 import src.cutter_control
 import src.loggernet
+import sys
 from pathlib import Path
 from PIL import Image, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -116,6 +117,7 @@ class CameraApp(tk.Tk):
             except OSError:
                 print(
                     "[DRIVER] Error: Video device not found. Please check your index.")
+                sys.exit(1)
 
             microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
             self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
@@ -155,7 +157,6 @@ class CameraApp(tk.Tk):
         self.canvas.pack(side="left")
 
         # Create a canvas for displaying the loggernet graph
-
         frame = tk.Frame(self)
         frame.pack(anchor="nw", padx=10, pady=10)
         self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
@@ -334,9 +335,10 @@ class CameraApp(tk.Tk):
     #         self.analyzer.plot_histogram(frame)
 
     def quit(self):
-        cv2.destroyAllWindows()
+        print("Exiting...")
         self.stop_analysis()
         self.camera.release()
+        self.destroy()
         super().quit()
 
     def load_watermark(self, watermark_path):
