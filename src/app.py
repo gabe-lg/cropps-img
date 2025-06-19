@@ -132,9 +132,22 @@ class CameraApp(tk.Tk):
         self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
                                                          self.sms_sender)
 
-        # Create a frame for buttons to be packed into
-        self.button_frame = tk.Frame(self)
-        self.button_frame.pack(side="bottom", pady=10)
+        # For buttons
+        scroll_frame = tk.Frame(self)
+        scroll_frame.pack(side="bottom", fill="x", pady=2)
+
+        h_scrollbar = tk.Scrollbar(scroll_frame, orient="horizontal")
+        h_scrollbar.pack(side="bottom", fill="x")
+
+        self.button_canvas = tk.Canvas(scroll_frame, height=30,
+                                       xscrollcommand=h_scrollbar.set)
+        self.button_canvas.pack(side="bottom", fill="x", pady=5)
+
+
+        self.button_frame = tk.Frame(self.button_canvas)
+        self.button_canvas.create_window((0, 0), window=self.button_frame,
+                                         anchor="nw", tags="self.button_frame")
+        h_scrollbar.config(command=self.button_canvas.xview)
 
         # Create a canvas for displaying the camera feed
         self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
@@ -162,6 +175,23 @@ class CameraApp(tk.Tk):
 
     def create_widgets(self):
         """Create all the GUI buttons."""
+
+        def on_frame_configure(_):
+            """Reset the scroll region to encompass the inner frame"""
+            self.button_canvas.configure(
+                scrollregion=self.button_canvas.bbox("all"))
+
+        def on_canvas_configure(event):
+            """When canvas is resized, resize the inner frame to match"""
+            min_width = self.button_frame.winfo_reqwidth()
+            if event.width < min_width:
+                # Canvas is smaller than total button width, so expand canvas to fit all content
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=min_width)
+            else:
+                # Canvas is larger than needed, so shrink canvas to fit window
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=event.width)
 
         # Capture Button
         self.capture_button = tk.Button(self.button_frame, text="Capture Image",
@@ -215,28 +245,19 @@ class CameraApp(tk.Tk):
                                         command=self.print_fov)
             self.fov_button.pack(side="left", padx=10)
 
-            # Exposure label and entry
-            self.exposure_label_text = tk.StringVar(
-                value=f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
-            self.exposure_label = tk.Label(self.button_frame,
-                                           textvariable=self.exposure_label_text)
-            self.exposure_label.pack(side="left", padx=10)
-
-            self.exposure_entry = tk.Entry(self.button_frame)
-            self.exposure_entry.pack(side="left", padx=10)
-            self.exposure_entry.bind("<Return>",
-                                     lambda event: self.apply_exposure())
-
-            # Set Exposure Button
-            self.set_exposure_button = tk.Button(self.button_frame,
-                                                 text="Set Exposure",
-                                                 command=self.apply_exposure)
-            self.set_exposure_button.pack(side="left", padx=10)
+            self.exposure_button = tk.Button(self.button_frame,
+                                             text="Exposure Settings",
+                                             command=self.show_exposure_dialog)
+            self.exposure_button.pack(side="left", padx=10)
 
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
                                      command=self.quit)
         self.quit_button.pack(side="left", padx=10)
+
+        # Bind events to handle canvas resizing
+        self.button_frame.bind('<Configure>', on_frame_configure)
+        self.button_canvas.bind('<Configure>', on_canvas_configure)
 
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
@@ -307,10 +328,10 @@ class CameraApp(tk.Tk):
 
         sms_dialog.mainloop()
 
-    def show_hist(self):
-        ret, frame = self.camera.read()
-        if ret:
-            self.analyzer.plot_histogram(frame)
+    # def show_hist(self):
+    #     ret, frame = self.camera.read()
+    #     if ret:
+    #         self.analyzer.plot_histogram(frame)
 
     def quit(self):
         cv2.destroyAllWindows()
@@ -445,32 +466,61 @@ class CameraApp(tk.Tk):
         except ValueError:
             return False
 
-    # UI feature to display when waiting for microscope
-    def set_exposure_loading(self, status):
-        if status is True:
-            self.set_exposure_button.config(
-                state="disabled",
-                text="Working..."
-            )
-        else:
-            self.set_exposure_button.config(
-                state="normal",
-                text="Set Exposure"
-            )
+    def show_exposure_dialog(self):
+        def apply():
+            value = exposure_entry.get()
+            if self.validate_exposure(value):
+                exposure_value = int(value)
+                set_exposure(exposure_value)
+                self.current_exposure = exposure_value
+                dialog.destroy()
+                (tkinter.messagebox
+                 .showinfo("Exposure",
+                           f"Exposure set to {exposure_value:,}"))
+            else:
+                error_label.config(
+                    text="Please enter a valid value between 100 and 60,000")
 
-    @threaded
-    def apply_exposure(self):
-        """Apply the exposure value to the microscope."""
-        self.set_exposure_loading(True)
-        exposure_value = self.exposure_entry.get()
-        if self.validate_exposure(exposure_value):
-            exposure_value = int(exposure_value)
-            set_exposure(exposure_value)
-            self.current_exposure = exposure_value
-            self.exposure_label_text.set(
-                f"Set Exposure (100 - 60,000, Current: {self.current_exposure:,}):")
-            print(f"Exposure set to {exposure_value:,}")
-        self.set_exposure_loading(False)
+        dialog = tk.Toplevel(self)
+        dialog.title("Exposure Settings")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+
+        content_frame = tk.Frame(dialog)
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        current_label = tk.Label(content_frame,
+                                 text=f"Current Exposure: {self.current_exposure:,}")
+        current_label.pack(pady=(0, 10))
+
+        input_frame = tk.Frame(content_frame)
+        input_frame.pack(fill="x", pady=10)
+
+        tk.Label(input_frame, text="New exposure (100-60,000):").pack(
+            side="left")
+        exposure_entry = tk.Entry(input_frame, width=10)
+        exposure_entry.pack(side="left", padx=10)
+
+        error_label = tk.Label(content_frame, text="", fg="red")
+        error_label.pack(pady=5)
+
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack()
+
+        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
+            side="left", padx=5)
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(side="left", padx=5)
+
+        exposure_entry.bind("<Return>", lambda e: apply())
+
+        # Center the dialog on the main window
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
 
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
