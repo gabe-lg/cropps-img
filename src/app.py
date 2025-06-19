@@ -2,6 +2,7 @@ import cv2
 import threading
 import time
 import tkinter as tk
+import tkinter.simpledialog, tkinter.messagebox
 import src.analyzer
 import src.cutter_control
 import src.loggernet
@@ -42,12 +43,19 @@ def get_microscope(dnx64_path):
     try:
         microscope = DNX64(dnx64_path)
     except FileNotFoundError:
-        dnx64_path = input(
-            'The DNX64 path is not valid. Please enter your DNX64 path, or press enter to skip: ')
+        dnx64_path = (tkinter.simpledialog
+                      .askstring("DNX64 Path",
+                                 "DNX64 file not found at"
+                                 f"\n{dnx64_path}.\n"
+                                 "Please enter your DNX64 path, or press "
+                                 "cancel to use a regular camera:"))
         if dnx64_path:
             get_microscope(dnx64_path)
         else:
             microscope = None
+            (tkinter.messagebox
+             .showinfo("DNX64 Path",
+                       "DNX64 file not found, using a regular camera instead."))
 
 
 get_microscope(DNX64_PATH)
@@ -312,17 +320,30 @@ class CameraApp(tk.Tk):
 
     def load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
-        if watermark_path.exists():  # Check if the watermark file exists
-            self.watermark = Image.open(watermark_path)
-            self.watermark = self.watermark.resize(
-                (200, 100)
-            )  # Resize the watermark (optional)
-        else:
-            print(
-                f"[DRIVER] Warning: Watermark file not found at {watermark_path}")
-            self.watermark = Image.new(
-                "RGBA", (200, 100)
-            )  # Return an empty image if the watermark doesn't exist
+
+        def get_path(path):
+            if path.exists():  # Check if the watermark file exists
+                self.watermark = Image.open(watermark_path)
+                self.watermark = self.watermark.resize(
+                    (200, 100)
+                )  # Resize the watermark (optional)
+            else:
+                path = tkinter.simpledialog.askstring("Watermark",
+                                                      "Watermark file not found at"
+                                                      f"\n{path}.\n"
+                                                      "Please enter a valid path, or press cancel to skip:")
+                if path:
+                    get_path(Path(path))
+                else:
+                    self.watermark = Image.new(
+                        "RGBA", (200, 100)
+                    )  # Return an empty image if the watermark doesn't exist
+                    tkinter.messagebox.showinfo(
+                        "Watermark",
+                        "Watermark file not found. Using an empty image instead."
+                    )
+
+        get_path(watermark_path)
 
     def overlay_watermark(self, frame):
         """Overlay the watermark on the frame."""
