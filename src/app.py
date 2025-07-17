@@ -1,4 +1,5 @@
 import cv2
+import os
 import threading
 import time
 import tkinter as tk
@@ -7,9 +8,9 @@ import src.analyzer
 import src.cutter_control
 import src.loggernet
 import sys
-from pathlib import Path
-from PIL import Image, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import capture_image, CaptureTask
 from src.driver_dnx64 import DNX64
 
@@ -28,78 +29,11 @@ QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
 
 
-def threaded(func):
+def threaded(target):
     """Wrapper to run a function in a separate thread with @threaded decorator"""
+    return lambda *args, **kwargs: threading.Thread(target=target, args=args,
+                                                    kwargs=kwargs).start()
 
-    def wrapper(*args, **kwargs):
-        thread = threading.Thread(target=func, args=args, kwargs=kwargs)
-        thread.start()
-
-    return wrapper
-
-
-def get_microscope(dnx64_path):
-    """Initialize microscope"""
-    global microscope
-    try:
-        microscope = DNX64(dnx64_path)
-    except FileNotFoundError:
-        dnx64_path = (tkinter.simpledialog
-                      .askstring("DNX64 Path",
-                                 "DNX64 file not found at"
-                                 f"\n{dnx64_path}.\n"
-                                 "Please enter your DNX64 path, or press "
-                                 "cancel to use a regular camera:"))
-        if dnx64_path:
-            get_microscope(dnx64_path)
-        else:
-            microscope = None
-            (tkinter.messagebox
-             .showinfo("DNX64 Path",
-                       "DNX64 file not found, using a regular camera instead."))
-
-
-get_microscope(DNX64_PATH)
-
-
-def set_exposure(exposure):
-    microscope.Init()
-    microscope.SetAutoExposure(DEVICE_INDEX, 0)
-    microscope.SetExposureValue(DEVICE_INDEX, exposure)
-    time.sleep(QUERY_TIME)
-
-
-def start_recording(frame_width, frame_height, fps):
-    """Start recording video and return the video writer object."""
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"video_{timestamp}.avi"
-    fourcc = cv2.VideoWriter.fourcc(*'XVID')
-    video_writer = cv2.VideoWriter(filename, fourcc, fps,
-                                   (frame_width, frame_height))
-    print(f"Video recording started: {filename}\nPress SPACE to stop.")
-    return video_writer
-
-
-def stop_recording(video_writer):
-    """Stop recording video and release the video writer object."""
-    video_writer.release()
-    print("Video recording stopped")
-
-
-def initialize_camera():
-    """Setup OpenCV camera parameters and return the camera object."""
-    camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
-    camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-    return camera
-
-
-def process_frame(frame):
-    """Resize frame to fit window."""
-    return cv2.resize(frame, (WINDOW_WIDTH, WINDOW_HEIGHT))
 
 
 class CameraApp(tk.Tk):
@@ -110,155 +44,118 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
 
-        if microscope:
-            try:
-                microscope.SetVideoDeviceIndex(
-                    DEVICE_INDEX)  # Set index of video device. Call before Init().
-            except OSError:
-                print(
-                    "[DRIVER] Error: Video device not found. Please check your index.")
-                sys.exit(1)
+        # Show loading screen in main window
+        self.loading_frame = tk.Frame(self)
+        self.loading_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-            microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
-            self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
+        # Load and display background
+        try:
+            bg_image = Image.open(BG_PATH)
+            bg_image = bg_image.resize((400, 300))
+            self.bg_photo = ImageTk.PhotoImage(bg_image)
+            bg_label = tk.Label(self.loading_frame, image=self.bg_photo)
+            bg_label.pack()
+        except Exception as e:
+            print(f"Error loading background: {e}")
+            self.loading_frame.configure(bg='white')
 
-        self.camera = initialize_camera()
-        self.recording = False
-        self.video_writer = None
-        self.analyzing = False
+        # Create canvas for rotating circle
+        self.loading_canvas = tk.Canvas(self.loading_frame, width=50, height=50)
+        self.loading_canvas.pack(pady=(20, 5))  # Reduced bottom padding
+
+        # Add loading text
+        self.loading_text = tk.Label(self.loading_frame, text="Loading...",
+                                     font=('Comic Sans MS', 16))
+        self.loading_text.pack(pady=(0, 20))
+
+        # Initialize loading animation
+        self.angle = 60
+        self._animate_loading()
+
+        # Initialize camera in separate thread
+        self._get_microscope(DNX64_PATH)
+        self.camera = None
+        self._init_camera_thread()
+
+    def quit(self):
+        print("Exiting...")
+        self.stop_analysis()
+        self.camera.release()
+        self.destroy()
+        super().quit()
+
+    ## main update function ##
+    def update_camera_feed(self):
+        """Update the camera feed in the GUI window."""
+        if not (hasattr(self, 'camera') and self.camera): return
+
+        ret, frame = self.camera.read()
+        if ret:
+            self.capture_task.set_frame(frame)
+            self.analyzer.paint_square(frame)
+
+            pil_image = self._overlay_watermark(frame)
+            pil_image = self._overlay_text(pil_image)
+
+            self.imgtk = ImageTk.PhotoImage(image=pil_image)
+            self.canvas.delete('all')
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
+
+        # update loggernet graph
+        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        self.loggernet_canvas.draw_idle()
+        self.histogram.update(frame)
+        self.histogram_canvas.draw_idle()
+
+        self.after(10, self.update_camera_feed)
+
+    ## main functions for buttons ##
+    @threaded
+    def capture(self):
+        """Capture an image when the button is pressed."""
+        ret, frame = self.camera.read()
+        if ret: capture_image(frame)
+
+    def start_recording(self):
+        """Start recording video."""
+        if not self.recording:
+            self.recording = True
+
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"video_{timestamp}.avi"
+            fourcc = cv2.VideoWriter.fourcc(*'XVID')
+            self.video_writer = cv2.VideoWriter(filename, fourcc, CAMERA_FPS,
+                                                (CAMERA_WIDTH, CAMERA_HEIGHT))
+            print(f"Video recording started: {filename}\nPress SPACE to stop.")
+
+    def stop_recording(self):
+        """Stop recording video."""
+        if self.recording:
+            self.recording = False
+            self.video_writer.release()
+
+    def start_analysis(self):
+        self.capture_task.start()
+        self.observer_obj.start_monitoring()
+        self.start_analysis_button.config(
+            text="Stop Analysis",
+            fg="darkred",
+            command=self.stop_analysis
+        )
+
+    def stop_analysis(self):
+        if self.capture_task.is_alive():
+            self.capture_task.stop()
+            self.capture_task.join()
+        self.observer_obj.stop()
+        self.start_analysis_button.config(
+            text="Start Analysis",
+            fg="darkgreen",
+            command=self.start_analysis
+        )
         self.capture_task = CaptureTask()
-        self.analyzer = src.analyzer.Analyzer()
-        self.histogram = src.analyzer.Histogram()
-        self.sms_sender = src.sms_sender.SmsSender()
-        self.loggernet = src.loggernet.Loggernet()
         self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
                                                          self.sms_sender)
-
-        # For buttons
-        scroll_frame = tk.Frame(self)
-        scroll_frame.pack(side="bottom", fill="x", pady=2)
-
-        h_scrollbar = tk.Scrollbar(scroll_frame, orient="horizontal")
-        h_scrollbar.pack(side="bottom", fill="x")
-
-        self.button_canvas = tk.Canvas(scroll_frame, height=30,
-                                       xscrollcommand=h_scrollbar.set)
-        self.button_canvas.pack(side="bottom", fill="x", pady=5)
-
-
-        self.button_frame = tk.Frame(self.button_canvas)
-        self.button_canvas.create_window((0, 0), window=self.button_frame,
-                                         anchor="nw", tags="self.button_frame")
-        h_scrollbar.config(command=self.button_canvas.xview)
-
-        # Create a canvas for displaying the camera feed
-        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
-                                height=WINDOW_HEIGHT)
-        self.canvas.pack(side="left")
-
-        # Create a canvas for displaying the loggernet graph
-        frame = tk.Frame(self)
-        frame.pack(anchor="nw", padx=10, pady=10)
-        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
-                                                  master=frame)
-        self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
-
-        frame = tk.Frame(self)
-        frame.pack(anchor="sw", padx=10, pady=10)
-        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
-                                                  master=frame)
-        self.histogram_canvas.get_tk_widget().pack(anchor="sw")
-
-        self.create_widgets()
-
-        self.load_watermark(WATERMARK_PATH)
-        self.imgtk = None  # Initialize a reference to avoid garbage collection
-
-    def create_widgets(self):
-        """Create all the GUI buttons."""
-
-        def on_frame_configure(_):
-            """Reset the scroll region to encompass the inner frame"""
-            self.button_canvas.configure(
-                scrollregion=self.button_canvas.bbox("all"))
-
-        def on_canvas_configure(event):
-            """When canvas is resized, resize the inner frame to match"""
-            min_width = self.button_frame.winfo_reqwidth()
-            if event.width < min_width:
-                # Canvas is smaller than total button width, so expand canvas to fit all content
-                self.button_canvas.itemconfig("self.button_frame",
-                                              width=min_width)
-            else:
-                # Canvas is larger than needed, so shrink canvas to fit window
-                self.button_canvas.itemconfig("self.button_frame",
-                                              width=event.width)
-
-        # Capture Button
-        self.capture_button = tk.Button(self.button_frame, text="Capture Image",
-                                        command=self.capture)
-        self.capture_button.pack(side="left", padx=10)
-
-        # Start Recording Button
-        self.start_record_button = tk.Button(self.button_frame,
-                                             text="Start Recording",
-                                             command=self.start_recording)
-        self.start_record_button.pack(side="left", padx=10)
-
-        # Stop Recording Button
-        self.stop_record_button = tk.Button(self.button_frame,
-                                            text="Stop Recording",
-                                            command=self.stop_recording)
-        self.stop_record_button.pack(side="left", padx=10)
-
-        # Analysis buttons
-        self.start_analysis_button = tk.Button(self.button_frame,
-                                               text="Start Analysis",
-                                               fg="darkgreen",
-                                               command=self.start_analysis)
-        self.start_analysis_button.pack(side="left", padx=10)
-
-        # # Show Histogram Button
-        # self.show_hist_button = tk.Button(self.button_frame,
-        #                                   text="Show Histogram",
-        #                                   command=self.show_hist)
-        # self.show_hist_button.pack(side="left", padx=10)
-
-        # Set SMS information Button
-        self.set_sms_button = tk.Button(self.button_frame, text="SMS Info",
-                                        command=self.sms_info)
-        self.set_sms_button.pack(side="left", padx=10)
-
-        if microscope:
-            # AMR Button
-            self.amr_button = tk.Button(self.button_frame, text="Print AMR",
-                                        command=self.print_amr)
-            self.amr_button.pack(side="left", padx=10)
-
-            # LED Flash Button
-            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
-                                          command=self.flash_leds)
-            self.flash_button.pack(side="left", padx=10)
-
-            # FOV Button
-            self.fov_button = tk.Button(self.button_frame,
-                                        text="Print FOV (mm)",
-                                        command=self.print_fov)
-            self.fov_button.pack(side="left", padx=10)
-
-            self.exposure_button = tk.Button(self.button_frame,
-                                             text="Exposure Settings",
-                                             command=self.show_exposure_dialog)
-            self.exposure_button.pack(side="left", padx=10)
-
-        # Close Button
-        self.quit_button = tk.Button(self.button_frame, text="Exit",
-                                     command=self.quit)
-        self.quit_button.pack(side="left", padx=10)
-
-        # Bind events to handle canvas resizing
-        self.button_frame.bind('<Configure>', on_frame_configure)
-        self.button_canvas.bind('<Configure>', on_canvas_configure)
 
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
@@ -329,151 +226,22 @@ class CameraApp(tk.Tk):
 
         sms_dialog.mainloop()
 
-    # def show_hist(self):
-    #     ret, frame = self.camera.read()
-    #     if ret:
-    #         self.analyzer.plot_histogram(frame)
-
-    def quit(self):
-        print("Exiting...")
-        self.stop_analysis()
-        self.camera.release()
-        self.destroy()
-        super().quit()
-
-    def load_watermark(self, watermark_path):
-        """Load the watermark image and resize it."""
-
-        def get_path(path):
-            if path.exists():  # Check if the watermark file exists
-                self.watermark = Image.open(watermark_path)
-                self.watermark = self.watermark.resize(
-                    (200, 100)
-                )  # Resize the watermark (optional)
-            else:
-                path = tkinter.simpledialog.askstring("Watermark",
-                                                      "Watermark file not found at"
-                                                      f"\n{path}.\n"
-                                                      "Please enter a valid path, or press cancel to skip:")
-                if path:
-                    get_path(Path(path))
-                else:
-                    self.watermark = Image.new(
-                        "RGBA", (200, 100)
-                    )  # Return an empty image if the watermark doesn't exist
-                    tkinter.messagebox.showinfo(
-                        "Watermark",
-                        "Watermark file not found. Using an empty image instead."
-                    )
-
-        get_path(watermark_path)
-
-    def overlay_watermark(self, frame):
-        """Overlay the watermark on the frame."""
-        # Convert the frame to RGB (from BGR)
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Convert frame to a PIL image
-        pil_image = Image.fromarray(frame_rgb)
-
-        # Overlay watermark at bottom right corner (can change position)
-        # watermark_width, watermark_height = self.watermark.size
-        padding = 10
-        pil_image.paste(
-            self.watermark,
-            (
-                0 + padding,
-                0 + padding,
-            ),
-            self.watermark,
-        )
-        return pil_image
-
-    @threaded
-    def capture(self):
-        """Capture an image when the button is pressed."""
-        ret, frame = self.camera.read()
-        if ret:
-            capture_image(frame)
-
-    @threaded
-    def print_amr(self):
-        """Print the AMR value when the button is pressed."""
-        microscope.Init()
-        amr = microscope.GetAMR(DEVICE_INDEX)
-        amr = round(amr, 1)
-        print(f"{amr}x")
-
     @threaded
     def flash_leds(self):
         """Flash the LED when the button is pressed."""
-        microscope.Init()
-        microscope.SetLEDState(0, 0)
+        # TODO: Race condition with self._update_data
+        self.microscope.Init()
+        self.microscope.SetLEDState(0, 0)
         time.sleep(COMMAND_TIME)
-        microscope.SetLEDState(0, 1)
+        self.microscope.SetLEDState(0, 1)
         time.sleep(COMMAND_TIME)
-
-    @threaded
-    def print_fov(self):
-        """Print the FOV in mm when the button is pressed."""
-        microscope.Init()
-        fov = microscope.FOVx(DEVICE_INDEX, microscope.GetAMR(DEVICE_INDEX))
-        fov = round(fov / 1000, 2)
-        print(f"{fov} mm")
-
-    def start_recording(self):
-        """Start recording video."""
-        if not self.recording:
-            self.recording = True
-            self.video_writer = start_recording(CAMERA_WIDTH, CAMERA_HEIGHT,
-                                                CAMERA_FPS)
-
-    def stop_recording(self):
-        """Stop recording video."""
-        if self.recording:
-            self.recording = False
-            self.video_writer.release()
-
-    def start_analysis(self):
-        self.capture_task.start()
-        self.observer_obj.start_monitoring()
-        self.start_analysis_button.config(
-            text="Stop Analysis",
-            fg="darkred",
-            command=self.stop_analysis
-        )
-
-    def stop_analysis(self):
-        if self.capture_task.is_alive():
-            self.capture_task.stop()
-            self.capture_task.join()
-        self.observer_obj.stop()
-        self.start_analysis_button.config(
-            text="Start Analysis",
-            fg="darkgreen",
-            command=self.start_analysis
-        )
-        self.capture_task = CaptureTask()
-        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-                                                         self.sms_sender)
-
-    def validate_exposure(self, value):
-        """Validate that the exposure value is between 100 and 60000."""
-        try:
-            value = int(value)
-            if 100 <= value <= 60000:
-                return True
-            else:
-                return False
-        except ValueError:
-            return False
 
     def show_exposure_dialog(self):
         def apply():
             value = exposure_entry.get()
-            if self.validate_exposure(value):
+            if self._validate_exposure(value):
                 exposure_value = int(value)
-                set_exposure(exposure_value)
+                self._set_exposure(exposure_value)
                 self.current_exposure = exposure_value
                 dialog.destroy()
                 (tkinter.messagebox
@@ -524,31 +292,290 @@ class CameraApp(tk.Tk):
                 dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
-    def update_camera_feed(self):
-        """Update the camera feed in the GUI window."""
-        ret, frame = self.camera.read()
-        if ret:
-            self.capture_task.set_frame(frame)
-            self.analyzer.paint_square(frame)
-            frame_with_watermark = self.overlay_watermark(frame)
-            self.imgtk = ImageTk.PhotoImage(image=frame_with_watermark)
-            self.canvas.delete('all')
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
+    ## setup helpers ##
+    def _animate_loading(self):
+        """Animate the loading circle"""
+        if hasattr(self, 'camera') and self.camera: return
 
-        # update loggernet graph
-        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        self.loggernet_canvas.draw_idle() if self.loggernet_canvas else print(
-            "loggernet is none")
-        self.histogram.update(frame)
-        self.histogram_canvas.draw_idle() if self.histogram_canvas else print(
-            "histogram is none")
+        self.loading_canvas.delete("all")
 
-        # Update every 10 ms
-        self.after(50, self.update_camera_feed)
+        # Draw rotating arc
+        # TODO: Bad loading icon
+        self.loading_canvas.create_arc(5, 5, 45, 45, start=self.angle,
+                                       extent=300, fill='',
+                                       outline='blue', width=2)
+
+        self.angle = (self.angle - 10) % 360
+        self.after(50, self._animate_loading)
+
+    def _create_widgets(self):
+        """Create all the GUI buttons."""
+
+        def on_frame_configure(_):
+            """Reset the scroll region to encompass the inner frame"""
+            self.button_canvas.configure(
+                scrollregion=self.button_canvas.bbox("all"))
+
+        def on_canvas_configure(event):
+            """When canvas is resized, resize the inner frame to match"""
+            min_width = self.button_frame.winfo_reqwidth()
+            if event.width < min_width:
+                # Canvas is smaller than total button width, so expand canvas to fit all content
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=min_width)
+            else:
+                # Canvas is larger than needed, so shrink canvas to fit window
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=event.width)
+
+        # Capture Button
+        self.capture_button = tk.Button(self.button_frame, text="Capture Image",
+                                        command=self.capture)
+        self.capture_button.pack(side="left", padx=10)
+
+        # Start Recording Button
+        self.start_record_button = tk.Button(self.button_frame,
+                                             text="Start Recording",
+                                             command=self.start_recording)
+        self.start_record_button.pack(side="left", padx=10)
+
+        # Stop Recording Button
+        self.stop_record_button = tk.Button(self.button_frame,
+                                            text="Stop Recording",
+                                            command=self.stop_recording)
+        self.stop_record_button.pack(side="left", padx=10)
+
+        # Analysis buttons
+        self.start_analysis_button = tk.Button(self.button_frame,
+                                               text="Start Analysis",
+                                               fg="darkgreen",
+                                               command=self.start_analysis)
+        self.start_analysis_button.pack(side="left", padx=10)
+
+        # Set SMS information Button
+        self.set_sms_button = tk.Button(self.button_frame, text="SMS Info",
+                                        command=self.sms_info)
+        self.set_sms_button.pack(side="left", padx=10)
+
+        if self.microscope:
+            # LED Flash Button
+            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
+                                          command=self.flash_leds)
+            self.flash_button.pack(side="left", padx=10)
+
+            # Set exposure button
+            self.exposure_button = tk.Button(self.button_frame,
+                                             text="Exposure Settings",
+                                             command=self.show_exposure_dialog)
+            self.exposure_button.pack(side="left", padx=10)
+
+        # Close Button
+        self.quit_button = tk.Button(self.button_frame, text="Exit",
+                                     command=self.quit)
+        self.quit_button.pack(side="left", padx=10)
+
+        # Bind events to handle canvas resizing
+        self.button_frame.bind('<Configure>', on_frame_configure)
+        self.button_canvas.bind('<Configure>', on_canvas_configure)
+
+    def _get_microscope(self, dnx64_path):
+        """Initialize microscope"""
+        try:
+            self.microscope = DNX64(dnx64_path)
+        except FileNotFoundError:
+            dnx64_path = (tkinter.simpledialog
+                          .askstring("DNX64 Path",
+                                     "DNX64 file not found at"
+                                     f"\n{dnx64_path}.\n"
+                                     "Please enter your DNX64 path, or press "
+                                     "cancel to use a regular camera:"))
+            if dnx64_path:
+                self._get_microscope(dnx64_path)
+            else:
+                self.microscope = None
+                (tkinter.messagebox
+                 .showinfo("DNX64 Path",
+                           "DNX64 file not found, using a regular camera instead."))
+
+    @threaded
+    def _init_camera_thread(self):
+        """Initialize camera in a separate thread"""
+        if self.microscope:
+            try:
+                self.microscope.SetVideoDeviceIndex(DEVICE_INDEX)
+                self.microscope.Init()
+                self.current_exposure = self.microscope.GetExposureValue(
+                    DEVICE_INDEX)
+            except OSError:
+                print(
+                    "[DRIVER] Error: Video device not found. Please check your index.")
+                sys.exit(1)
+
+        self.camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
+        self.camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+        self.camera.set(cv2.CAP_PROP_FOURCC,
+                        cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
+        self.camera.set(cv2.CAP_PROP_FOURCC,
+                        cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
+        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+
+        self.after(0, self._setup_ui_after_camera)
+        self.after(0, self._update_data)
+
+    def _load_watermark(self, watermark_path):
+        """Load the watermark image and resize it."""
+
+        def get_path(path):
+            if path.exists():
+                self.watermark = Image.open(watermark_path)
+                self.watermark = self.watermark.resize((200, 100))
+                # Pre-convert to RGBA
+                if self.watermark.mode != 'RGBA':
+                    self.watermark = self.watermark.convert('RGBA')
+            else:
+                self.watermark = Image.new("RGBA", (200, 100))
+
+        get_path(watermark_path)
+
+    def _setup_canvases(self):
+        """Setup main canvas and graph canvases"""
+        # Camera feed canvas
+        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
+                                height=WINDOW_HEIGHT)
+        self.canvas.pack(side="left")
+
+        # Loggernet graph canvas
+        frame = tk.Frame(self)
+        frame.pack(anchor="nw", padx=10, pady=10)
+        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+                                                  master=frame)
+        self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
+
+        # Histogram canvas
+        frame = tk.Frame(self)
+        frame.pack(anchor="sw", padx=10, pady=10)
+        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+                                                  master=frame)
+        self.histogram_canvas.get_tk_widget().pack(anchor="sw")
+
+        self.imgtk = None  # Initialize a reference to avoid garbage collection
+
+    def _setup_scroll_frame(self):
+        """Setup scroll frame for buttons"""
+        scroll_frame = tk.Frame(self)
+        scroll_frame.pack(side="bottom", fill="x", pady=2)
+
+        h_scrollbar = tk.Scrollbar(scroll_frame, orient="horizontal")
+        h_scrollbar.pack(side="bottom", fill="x")
+
+        self.button_canvas = tk.Canvas(scroll_frame, height=30,
+                                       xscrollcommand=h_scrollbar.set)
+        self.button_canvas.pack(side="bottom", fill="x", pady=5)
+
+        self.button_frame = tk.Frame(self.button_canvas)
+        self.button_canvas.create_window((0, 0), window=self.button_frame,
+                                         anchor="nw", tags="self.button_frame")
+        h_scrollbar.config(command=self.button_canvas.xview)
+
+    def _setup_ui_after_camera(self):
+        """Setup UI after camera initialization"""
+        # Remove loading screen
+        self.loading_frame.destroy()
+
+        # Continue with regular UI setup
+        self.recording = False
+        self.video_writer = None
+        self.analyzing = False
+        self.capture_task = CaptureTask()
+        self.analyzer = src.analyzer.Analyzer()
+        self.histogram = src.analyzer.Histogram()
+        self.sms_sender = src.sms_sender.SmsSender()
+        self.loggernet = src.loggernet.Loggernet()
+        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
+                                                         self.sms_sender)
+
+        # Setup UI components
+        self._setup_scroll_frame()
+        self._setup_canvases()
+        self._create_widgets()
+        self._load_watermark(WATERMARK_PATH)
+        self.imgtk = None
+
+        # Start camera feed
+        self.update_camera_feed()
+
+    ## other helpers ##
+    def _overlay_text(self, pil_image):
+        """Overlay text in the northeast corner of the frame"""
+        # Create a drawing object
+        draw = ImageDraw.Draw(pil_image)
+
+        try:
+            text = f"AMR: {self.amr}x\nFOV: {self.fov} mm\nExposure: {self.current_exposure}"
+            font = ImageFont.truetype("arial.ttf", 20)
+            padding = 10
+
+            # Draw white text in the red rectangle
+            draw.text((padding, 150), text, fill='white',
+                      font=font)
+
+        finally:
+            return pil_image
+
+    def _overlay_watermark(self, frame):
+        """Overlay the watermark on the frame."""
+        # Convert the frame to RGB (from BGR)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Convert frame to a PIL image
+        pil_image = Image.fromarray(frame_rgb)
+
+        # Overlay watermark at bottom right corner (can change position)
+        # watermark_width, watermark_height = self.watermark.size
+        padding = 10
+        pil_image.paste(
+            self.watermark,
+            (
+                0 + padding,
+                0 + padding,
+            ),
+            self.watermark,
+        )
+        return pil_image
+
+    @threaded
+    def _set_exposure(self, exposure):
+        self.microscope.Init()
+        self.microscope.SetAutoExposure(DEVICE_INDEX, 0)
+        self.microscope.SetExposureValue(DEVICE_INDEX, exposure)
+        time.sleep(QUERY_TIME)
+
+    @threaded
+    def _update_data(self):
+        """Update the AMR and FOV values in background."""
+        if self.microscope and self.camera:
+            #TODO: Suppress print statements
+            self.microscope.Init()
+            self.amr = round(self.microscope.GetAMR(DEVICE_INDEX), 1)
+            self.fov = round(self.microscope.FOVx(
+                DEVICE_INDEX, self.amr) / 1000, 2)
+        self.after(500, self._update_data)
+
+    def _validate_exposure(self, value):
+        """Validate that the exposure value is between 100 and 60000."""
+        try:
+            value = int(value)
+            if 100 <= value <= 60000:
+                return True
+            else:
+                return False
+        except ValueError:
+            return False
 
 
 def main():
     app = CameraApp()
-    threading.Thread(target=src.cutter_control.cutter_app).start()
-    app.update_camera_feed()  # Start the camera feed update loop
+    # threading.Thread(target=src.cutter_control.cutter_app).start()
+    # app.update_camera_feed()  # Start the camera feed update loop
     app.mainloop()
