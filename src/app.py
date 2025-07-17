@@ -1,3 +1,5 @@
+from tkinter import messagebox
+
 import cv2
 import os
 import threading
@@ -35,7 +37,6 @@ def threaded(target):
                                                     kwargs=kwargs).start()
 
 
-
 class CameraApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -43,6 +44,13 @@ class CameraApp(tk.Tk):
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
+        # TODO: add button that toggles whether data is displayed in camera feed
+        self.show_data = False
+
+        # TODO: reduce latency. For now, at least disallow window resizing
+        #  since it crashes the app
+        self.resizable(False, False)
+        self.attributes('-fullscreen', True)
 
         # Show loading screen in main window
         self.loading_frame = tk.Frame(self)
@@ -115,10 +123,13 @@ class CameraApp(tk.Tk):
         """Capture an image when the button is pressed."""
         ret, frame = self.camera.read()
         if ret: capture_image(frame)
+        messagebox.showinfo("Capture", "Image captured successfully.")
 
     def start_recording(self):
         """Start recording video."""
-        if not self.recording:
+        if self.recording:
+            messagebox.showinfo("Recording", "Video is already recording.")
+        else:
             self.recording = True
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -126,13 +137,18 @@ class CameraApp(tk.Tk):
             fourcc = cv2.VideoWriter.fourcc(*'XVID')
             self.video_writer = cv2.VideoWriter(filename, fourcc, CAMERA_FPS,
                                                 (CAMERA_WIDTH, CAMERA_HEIGHT))
-            print(f"Video recording started: {filename}\nPress SPACE to stop.")
+            messagebox.showinfo("Recording",
+                                f"Video recording started: "
+                                f"{filename}\nPress SPACE to stop.")
 
     def stop_recording(self):
         """Stop recording video."""
         if self.recording:
             self.recording = False
             self.video_writer.release()
+            messagebox.showinfo("Recording", "Video recording stopped.")
+        else:
+            messagebox.showinfo("Recording", "No video is currently recording.")
 
     def start_analysis(self):
         self.capture_task.start()
@@ -554,8 +570,9 @@ class CameraApp(tk.Tk):
     @threaded
     def _update_data(self):
         """Update the AMR and FOV values in background."""
-        if self.microscope and self.camera:
-            #TODO: Suppress print statements
+        if self.microscope and self.camera and self.show_data:
+            # TODO: Suppress print statements
+            # TODO: amr is always 0
             self.microscope.Init()
             self.amr = round(self.microscope.GetAMR(DEVICE_INDEX), 1)
             self.fov = round(self.microscope.FOVx(
