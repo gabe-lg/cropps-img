@@ -122,10 +122,126 @@ class CameraApp(tk.Tk):
             microscope.Init()  # Initialize the control object. Required before using other methods, otherwise return values will fail or be incorrect.
             self.current_exposure = microscope.GetExposureValue(DEVICE_INDEX)
 
+<<<<<<< HEAD
         self.camera = initialize_camera()
         self.recording = False
         self.video_writer = None
         self.analyzing = False
+=======
+        # Load and display background
+        try:
+            bg_image = Image.open(BG_PATH)
+            bg_image = bg_image.resize((400, 300))
+            self.bg_photo = ImageTk.PhotoImage(bg_image)
+            bg_label = tk.Label(self.loading_frame, image=self.bg_photo)
+            bg_label.pack()
+        except Exception as e:
+            print(f"Error loading background: {e}")
+            self.loading_frame.configure(bg='white')
+
+        # Create canvas for rotating circle
+        self.loading_canvas = tk.Canvas(self.loading_frame, width=50, height=50)
+        self.loading_canvas.pack(pady=(20, 5))  # Reduced bottom padding
+
+        # Add loading text
+        self.loading_text = tk.Label(self.loading_frame, text="Loading...",
+                                     font=('Comic Sans MS', 16))
+        self.loading_text.pack(pady=(0, 20))
+
+        # Initialize loading animation
+        self.angle = 60
+        self._animate_loading()
+
+        # Initialize camera in separate thread
+        self._get_microscope(DNX64_PATH)
+        self.camera = None
+        self._init_camera_thread()
+
+    def quit(self):
+        self.sms_sender.send_debug_msg("Exiting...")
+        self.stop_analysis()
+        self.camera.release()
+        self.destroy()
+        super().quit()
+
+    ## main update function ##
+    def update_camera_feed(self):
+        """Update the camera feed in the GUI window."""
+        if not (hasattr(self, 'camera') and self.camera): return
+
+        ret, frame = self.camera.read()
+        if ret:
+            self.capture_task.set_frame(frame)
+            self.analyzer.paint_square(frame)
+
+            pil_image = self._overlay_watermark(frame)
+            pil_image = self._overlay_text(pil_image)
+
+            self.imgtk = ImageTk.PhotoImage(image=pil_image)
+            self.canvas.delete('all')
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
+
+        # update loggernet graph
+        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        self.loggernet_canvas.draw_idle()
+        self.histogram.update(frame)
+        self.histogram_canvas.draw_idle()
+
+        self.after(10, self.update_camera_feed)
+
+    ## main functions for buttons ##
+    @threaded
+    def capture(self):
+        """Capture an image when the button is pressed."""
+        ret, frame = self.camera.read()
+        if ret: capture_image(frame)
+        messagebox.showinfo("Capture", "Image captured successfully.")
+
+    def start_recording(self):
+        """Start recording video."""
+        if self.recording:
+            messagebox.showinfo("Recording", "Video is already recording.")
+        else:
+            self.recording = True
+
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"video_{timestamp}.avi"
+            fourcc = cv2.VideoWriter.fourcc(*'XVID')
+            self.video_writer = cv2.VideoWriter(filename, fourcc, CAMERA_FPS,
+                                                (CAMERA_WIDTH, CAMERA_HEIGHT))
+            messagebox.showinfo("Recording",
+                                f"Video recording started: "
+                                f"{filename}\nPress SPACE to stop.")
+
+    def stop_recording(self):
+        """Stop recording video."""
+        if self.recording:
+            self.recording = False
+            self.video_writer.release()
+            messagebox.showinfo("Recording", "Video recording stopped.")
+        else:
+            messagebox.showinfo("Recording", "No video is currently recording.")
+
+    def start_analysis(self):
+        self.capture_task.start()
+        self.observer_obj.start_monitoring()
+        self.start_analysis_button.config(
+            text="Stop Analysis",
+            fg="darkred",
+            command=self.stop_analysis
+        )
+
+    def stop_analysis(self):
+        if self.capture_task.is_alive():
+            self.capture_task.stop()
+            self.capture_task.join()
+        self.observer_obj.stop()
+        self.start_analysis_button.config(
+            text="Start Analysis",
+            fg="darkgreen",
+            command=self.start_analysis
+        )
+>>>>>>> d1e6343 (Improved analysis functions...)
         self.capture_task = CaptureTask()
         self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
@@ -306,6 +422,13 @@ class CameraApp(tk.Tk):
                         text="Please provide a name and phone number.")
                 else:
                     self.sms_sender.set_info(name, contact)
+                    self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
+                    self.sms_sender.send_msg(contact,
+                        f"Hi {name}, it’s me, your plant Bob. Help, I’m trapped "
+                        f"in this pot and they keep poking my leaves. "
+                        f"Send more sunlight and water... or at least a funny "
+                        f"meme. Don’t leaf me hanging!")
+                    self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
                     sms_dialog.destroy()
             else:
                 error_label.config(
