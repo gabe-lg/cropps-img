@@ -110,10 +110,10 @@ class CameraApp(tk.Tk):
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # update loggernet graph
-        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        self.loggernet_canvas.draw_idle()
-        self.histogram.update(frame)
-        self.histogram_canvas.draw_idle()
+        # if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        # self.loggernet_canvas.draw_idle()
+        # self.histogram.update(frame)
+        # self.histogram_canvas.draw_idle()
 
         self.after(10, self.update_camera_feed)
 
@@ -221,10 +221,10 @@ class CameraApp(tk.Tk):
                     self.sms_sender.set_info(name, contact)
                     self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
                     self.sms_sender.send_msg(contact,
-                        f"Hi {name}, it’s me, your plant Bob. Help, I’m trapped "
-                        f"in this pot and they keep poking my leaves. "
-                        f"Send more sunlight and water... or at least a funny "
-                        f"meme. Don’t leaf me hanging!")
+                                             f"Hi {name}, it’s me, your plant Bob. Help, I’m trapped "
+                                             f"in this pot and they keep poking my leaves. "
+                                             f"Send more sunlight and water... or at least a funny "
+                                             f"meme. Don’t leaf me hanging!")
                     self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
                     sms_dialog.destroy()
             else:
@@ -464,25 +464,29 @@ class CameraApp(tk.Tk):
     def _setup_canvases(self):
         """Setup main canvas and graph canvases"""
         # Camera feed canvas
-        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
+        # self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
+        #                         height=WINDOW_HEIGHT)
+        # self.canvas.pack(side="left")
+
+        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH,
                                 height=WINDOW_HEIGHT)
-        self.canvas.pack(side="left")
+        self.canvas.pack(fill="both", expand=True, padx=50, pady=50)
 
-        # Loggernet graph canvas
-        frame = tk.Frame(self)
-        frame.pack(anchor="nw", padx=10, pady=10)
-        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
-                                                  master=frame)
-        self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
-
-        # Histogram canvas
-        frame = tk.Frame(self)
-        frame.pack(anchor="sw", padx=10, pady=10)
-        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
-                                                  master=frame)
-        self.histogram_canvas.get_tk_widget().pack(anchor="sw")
-
-        self.imgtk = None  # Initialize a reference to avoid garbage collection
+        # # Loggernet graph canvas
+        # frame = tk.Frame(self)
+        # frame.pack(anchor="nw", padx=10, pady=10)
+        # self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+        #                                           master=frame)
+        # self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
+        #
+        # # Histogram canvas
+        # frame = tk.Frame(self)
+        # frame.pack(anchor="sw", padx=10, pady=10)
+        # self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+        #                                           master=frame)
+        # self.histogram_canvas.get_tk_widget().pack(anchor="sw")
+        #
+        # self.imgtk = None  # Initialize a reference to avoid garbage collection
 
     def _setup_scroll_frame(self):
         """Setup scroll frame for buttons"""
