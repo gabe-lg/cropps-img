@@ -4,6 +4,7 @@ import os
 import platform
 import src.sms_sender
 import time
+import uuid
 
 from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
@@ -200,22 +201,25 @@ class ImageHandler(FileSystemEventHandler):
             p = event.src_path
             for i in range(len(self.analyzer.functions)):
                 self.analyzer.functions[i](p, self.sms_sender)
-
+    def handle_image(self, frame):
+        # Save frame temporarily so combin() can read from disk
+        tmp_path = f"/tmp/frame_{uuid.uuid4().hex}.png"
+        cv2.imwrite(tmp_path, frame)
+        self.analyzer.combin(tmp_path, self.sms_sender)
+        os.remove(tmp_path)
 
 class ObserverWrapper:
     def __init__(self, analyzer: Analyzer,
-                 sms_sender: src.sms_sender.SmsSender):
-        self.event_handler = ImageHandler(analyzer, sms_sender)
-        self.observer = Observer()
-        # Set up file monitoring
+                 sms_sender: src.sms_sender.SmsSender,
+                 image_dir="./assets/captured_data"):
         self.event_handler = ImageHandler(analyzer, sms_sender)
         self.observer = Observer()
         self.analyzer = analyzer
+        self.image_dir = image_dir
 
     def start_monitoring(self):
-        print(f"Monitoring directory: {self.analyzer.dir} for new images...")
-        self.observer.schedule(self.event_handler, self.analyzer.dir,
-                               recursive=False)
+        print(f"Monitoring directory: {self.image_dir} for new images...")
+        self.observer.schedule(self.event_handler, self.image_dir, recursive=False)
         self.observer.start()
 
     def stop(self):

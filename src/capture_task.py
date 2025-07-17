@@ -5,10 +5,13 @@ import shutil
 import threading
 import time
 
-SCREENSHOT_DIRECTORY = ".\\assets\\captured_data\\" if (
-            platform.system() == "Windows") else "./assets/captured_data/"
+# the pictures from microscope are now saved in shared folder
+SCREENSHOT_DIRECTORY = os.environ.get(
+    "CAPTURE_DIR",
+    r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images"
+)
 CAPTURE_INTERVAL = 2
-FILE_LIMIT = 10
+FILE_LIMIT = 20
 
 
 class StoppableThread(threading.Thread):
@@ -31,16 +34,25 @@ class CaptureTask(StoppableThread):
     frame = None
 
     def run(self):
-        if self.frame is None:
-            raise Exception("Frame not set for capture")
+        print("[DRIVER] Capture thread started.")
+
+        # use Dino Lite microscope camera 
+        self.cam = cv2.VideoCapture(0)  
+
+        if not self.cam.isOpened():
+            raise Exception("Could not open Dino Lite camera")
 
         while not self.stopped():
-            capture_image(self.frame)
-            time.sleep(CAPTURE_INTERVAL)
-        print("Exiting run...")
+            ret, frame = self.cam.read()
+            if not ret:
+                print("[DRIVER] Failed to grab frame")
+                continue
 
-    def set_frame(self, frame):
-        self.frame = frame
+            capture_image(frame)
+            time.sleep(CAPTURE_INTERVAL)
+
+        self.cam.release()
+        print("[DRIVER] Capture thread exiting...")
 
 def _delete_file():
     """
@@ -70,6 +82,18 @@ def capture_image(frame):
 
     _delete_file()
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = SCREENSHOT_DIRECTORY + f"image_{timestamp}.png"
+    filename = os.path.join(SCREENSHOT_DIRECTORY, f"image_{timestamp}.png")
     cv2.imwrite(filename, frame)
     print(f"[DRIVER] Saved image to {filename}")
+
+# run the code only if this script is executed directly 
+if __name__ == "__main__":
+    task = CaptureTask()
+    task.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopping capture...")
+        task.stop()
+        task.join()
