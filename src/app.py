@@ -86,7 +86,7 @@ class CameraApp(tk.Tk):
         self._init_camera_thread()
 
     def quit(self):
-        print("Exiting...")
+        self.sms_sender.send_debug_msg("Exiting...")
         self.stop_analysis()
         self.camera.release()
         self.destroy()
@@ -219,6 +219,13 @@ class CameraApp(tk.Tk):
                         text="Please provide a name and phone number.")
                 else:
                     self.sms_sender.set_info(name, contact)
+                    self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
+                    self.sms_sender.send_msg(contact,
+                        f"Hi {name}, it’s me, your plant Bob. Help, I’m trapped "
+                        f"in this pot and they keep poking my leaves. "
+                        f"Send more sunlight and water... or at least a funny "
+                        f"meme. Don’t leaf me hanging!")
+                    self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
                     sms_dialog.destroy()
             else:
                 error_label.config(

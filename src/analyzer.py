@@ -21,6 +21,9 @@ class Analyzer:
         # seconds to wait before the file is read
         self.read_delay = 0.1
 
+        # only send a message if it is agitated twice in a row
+        self.agitated_count = 0
+
         # the cooldown period: the number of cycles before another text message can
         # be sent to the user
         self.cooldown = 5
@@ -40,7 +43,7 @@ class Analyzer:
 
         ### Thresholds for analysis - see functions below for specifications ###
         # BRIGHT PIXELS
-        self.threshold_bright = 30  # intensity ranges from 0 to 255
+        self.threshold_bright = 20  # intensity ranges from 0 to 255
         self.threshold_num_bright = 4000  # 1228800 (1280 * 960) pixels in an
         # image
 
@@ -140,6 +143,7 @@ class Analyzer:
         `THRESHOLD_BRIGHT`. The image is categorized as "agitated" if that number
         is greater than `THRESHOLD_NUM_BRIGHT`.
         """
+        # TODO: THIS IS A REALLY BAD FUNCTION
         return self._detect(image_path,
                             lambda img: np.count_nonzero(
                                 img > self.threshold_bright),
@@ -155,6 +159,7 @@ class Analyzer:
          that number is greater than `THRESHOLD_NORMALIZED_TOTAL`.
         """
 
+        # TODO: THIS IS A REALLY BAD FUNCTION
         def criteria(img):
             avg = int(np.average(img))
             img -= int(avg)
@@ -166,22 +171,53 @@ class Analyzer:
             extracted: extracted > self.threshold_normalized_total,
                             "Normalized intensity")
 
-    def combin(self, image_path: str, sms_sender: src.sms_sender.SmsSender) \
+    def detect_sparse_bright_pixels(self, image_path: str) -> tuple[bool, int]:
+        """
+        Detects agitation by looking for sparse bright pixels.
+        Returns True (agitated) when there are FEW bright pixels (between min and max thresholds).
+        Returns False when there are too many or too few bright pixels.
+        """
+
+        # TODO: THIS IS A BETTER BUT STILL REALLY BAD FUNCTION
+        def count_bright_pixels(img):
+            # Count pixels above brightness threshold
+            bright_pixels = np.count_nonzero(img > self.threshold_bright)
+            return bright_pixels
+
+        def is_agitated(count):
+            # Define min and max thresholds for number of bright pixels
+            MIN_BRIGHT_PIXELS = 1000  # Minimum number to consider valid
+            MAX_BRIGHT_PIXELS = 60000  # Maximum number before considered too bright
+
+            # Return True only if count is between min and max
+            return MIN_BRIGHT_PIXELS <= count <= MAX_BRIGHT_PIXELS
+
+        return self._detect(image_path, count_bright_pixels, is_agitated,
+                            "Sparse bright pixels")
+
+    def combin(self, image_path: str,
+               sms_sender: src.sms_sender.SmsSender = None) \
             -> tuple[bool, Optional[int]]:
         """
         The image is categorized as "agitated" if and only if all the functions
         above categorizes it as "agitated".
         """
-        print(f"[ANALYSIS] Processed: {image_path}")
+        if sms_sender: sms_sender.send_debug_msg(f"[ANALYSIS] Processed: {image_path}")
         a = self.detect_yellow_num(image_path)
         b = self.normalize_brightness(image_path)
-        res = (a[0] and b[0], None)
-        print(f"[ANALYSIS] Agitated: {res[0]}\n")
+        c = self.detect_sparse_bright_pixels(image_path)
+        if sms_sender: sms_sender.send_debug_msg(f"{c}")
+        res = (c[0], None)
+        if sms_sender: sms_sender.send_debug_msg(f"[ANALYSIS] Agitated: {res[0]}\n")
         if self.cooldown_tmp:
             self.cooldown_tmp -= 1
-        elif res[0] and not self.is_test and not sms_sender.send_sms():
-            self.cooldown_tmp = self.cooldown
-        print(f"Cooldown: {self.cooldown_tmp}")
+        elif res[0] and not self.is_test:
+            self.agitated_count += 1
+            self.agitated_count %= 2
+
+            if not self.agitated_count and sms_sender and sms_sender.send_sms():
+                self.cooldown_tmp = self.cooldown
+                sms_sender.send_debug_msg(f"Cooldown: {self.cooldown_tmp}")
         return res
 
 
