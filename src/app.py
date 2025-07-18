@@ -42,7 +42,7 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         # TODO: add button that toggles whether data is displayed in camera feed
-        self.show_data = False
+        self.show_data = True
 
         # TODO: reduce latency. For now, at least disallow window resizing
         #  since it crashes the app
@@ -125,7 +125,8 @@ class CameraApp(tk.Tk):
     def start_recording(self):
         """Start recording video."""
         if self.recording:
-            tkinter.messagebox.showinfo("Recording", "Video is already recording.")
+            tkinter.messagebox.showinfo("Recording",
+                                        "Video is already recording.")
         else:
             self.recording = True
 
@@ -135,8 +136,8 @@ class CameraApp(tk.Tk):
             self.video_writer = cv2.VideoWriter(filename, fourcc, CAMERA_FPS,
                                                 (CAMERA_WIDTH, CAMERA_HEIGHT))
             tkinter.messagebox.showinfo("Recording",
-                                f"Video recording started: "
-                                f"{filename}\nPress SPACE to stop.")
+                                        f"Video recording started: "
+                                        f"{filename}\nPress SPACE to stop.")
 
     def stop_recording(self):
         """Stop recording video."""
@@ -145,7 +146,8 @@ class CameraApp(tk.Tk):
             self.video_writer.release()
             tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
         else:
-            tkinter.messagebox.showinfo("Recording", "No video is currently recording.")
+            tkinter.messagebox.showinfo("Recording",
+                                        "No video is currently recording.")
 
     def start_analysis(self):
         self.capture_task.start()
@@ -216,10 +218,10 @@ class CameraApp(tk.Tk):
                         text="Please provide a name and phone number.")
                 else:
                     self.sms_sender.set_info(name, contact)
-                    self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
-                    self.sms_sender.send_msg(contact,
+                    self.sms_sender.send_msg(
+                        contact,
                         f"Hi {name}, it’s me, your plant Bob. Help, I’m trapped "
-                        f"in this pot and they keep poking my leaves. "
+                        f"in this pot and they keep cutting off my leaves. "
                         f"Send more sunlight and water... or at least a funny "
                         f"meme. Don’t leaf me hanging!")
                     self.sms_sender.send_msg(contact, "🌿🌿🌿🌿🌿")
