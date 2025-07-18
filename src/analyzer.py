@@ -43,7 +43,7 @@ class Analyzer:
 
         ### Thresholds for analysis - see functions below for specifications ###
         # BRIGHT PIXELS
-        self.threshold_bright = 20  # intensity ranges from 0 to 255
+        self.threshold_bright = 60  # intensity ranges from 0 to 255
         self.threshold_num_bright = 4000  # 1228800 (1280 * 960) pixels in an
         # image
 
@@ -187,7 +187,7 @@ class Analyzer:
         def is_agitated(count):
             # Define min and max thresholds for number of bright pixels
             MIN_BRIGHT_PIXELS = 1000  # Minimum number to consider valid
-            MAX_BRIGHT_PIXELS = 60000  # Maximum number before considered too bright
+            MAX_BRIGHT_PIXELS = 500000  # Maximum number before considered too bright
 
             # Return True only if count is between min and max
             return MIN_BRIGHT_PIXELS <= count <= MAX_BRIGHT_PIXELS
@@ -215,7 +215,7 @@ class Analyzer:
             self.agitated_count += 1
             self.agitated_count %= 2
 
-            if not self.agitated_count and sms_sender and sms_sender.send_sms():
+            if not self.agitated_count and sms_sender and not sms_sender.send_sms():
                 self.cooldown_tmp = self.cooldown
                 sms_sender.send_debug_msg(f"Cooldown: {self.cooldown_tmp}")
         return res
