@@ -4,3 +4,4 @@ opencv-python-headless
 pillow
 requests
 watchdog
+psycopg2-binary

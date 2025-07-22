@@ -5,11 +5,13 @@ import platform
 import src.sms_sender
 import time
 import uuid
+import src.db
 
 from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from .db import insert_data
 
 
 class Analyzer:
@@ -169,15 +171,31 @@ class Analyzer:
 
     def combin(self, image_path: str, sms_sender: src.sms_sender.SmsSender) \
             -> tuple[bool, Optional[int]]:
-        """
-        The image is categorized as "agitated" if and only if all the functions
-        above categorizes it as "agitated".
-        """
         print(f"[ANALYSIS] Processed: {image_path}")
         a = self.detect_yellow_num(image_path)
         b = self.normalize_brightness(image_path)
         res = (a[0] and b[0], None)
+
+        # Decide what to store in DB: processed image path if temp input
+        if "/tmp/" in image_path:
+            fname = os.path.basename(image_path).replace(".png", "_processed.jpg")
+            final_path = os.path.join("/app/shared-images", fname)
+        else:
+            final_path = image_path
+
+        try:
+            print(f"[DEBUG] Inserting to DB: yellow={a[1]}, normalized={b[1]}, agitated={res[0]}, path={final_path}")
+            src.db.insert_data(
+                yellow_pixels=a[1],
+                normalized_pixels=b[1],
+                agitation=res[0],
+                image_path=final_path
+            )
+        except Exception as e:
+            print("[DB ERROR from analyzer]", e)
+
         print(f"[ANALYSIS] Agitated: {res[0]}\n")
+
         if self.cooldown_tmp:
             self.cooldown_tmp -= 1
         elif res[0] and not self.is_test and not sms_sender.send_sms():
@@ -197,10 +215,13 @@ class ImageHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         file_name = os.path.basename(event.src_path)
+        if "_processed" in file_name.lower():
+            return  # Skip processed images
         if file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif')):
-            p = event.src_path
-            for i in range(len(self.analyzer.functions)):
-                self.analyzer.functions[i](p, self.sms_sender)
+            print(f"[HEADLESS] Processing new image: {event.src_path}")
+            for func in self.analyzer.functions:
+                func(event.src_path, self.sms_sender)
+
     def handle_image(self, frame):
         # Save frame temporarily so combin() can read from disk
         tmp_path = f"/tmp/frame_{uuid.uuid4().hex}.png"
