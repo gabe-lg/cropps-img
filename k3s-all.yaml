@@ -95,10 +95,16 @@ spec:
             - name: DB_PORT
               value: "5432"
           volumeMounts:
-            - name: shared-images
-              mountPath: /app/shared-images
+            - name: input-images
+              mountPath: /app/shared-images/input
+            - name: processed-images
+              mountPath: /app/shared-images/processed
       volumes:
-        - name: shared-images
+        - name: input-images
           hostPath:
-                path: /mnt/c/Users/17177/Desktop/cropps-img-half/cropps-img/shared-images
-                type: Directory
+            path: /mnt/c/Users/17177/Desktop/cropps-img-half/cropps-img/shared-images/input
+            type: Directory
+        - name: processed-images
+          hostPath:
+            path: /mnt/c/Users/17177/Desktop/cropps-img-half/cropps-img/shared-images/processed
+            type: Directory

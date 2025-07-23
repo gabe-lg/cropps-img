@@ -8,11 +8,10 @@ import time
 # the pictures from microscope are now saved in shared folder
 SCREENSHOT_DIRECTORY = os.environ.get(
     "CAPTURE_DIR",
-    r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images"
+    r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images\input"
 )
 CAPTURE_INTERVAL = 2
 FILE_LIMIT = 20
-
 
 class StoppableThread(threading.Thread):
     """Thread class with a stop() method. The thread itself has to check
@@ -72,7 +71,6 @@ def _delete_file():
                     os.remove(item_path)
                 elif os.path.isdir(item_path):
                     shutil.rmtree(item_path)
-
 
 def capture_image(frame):
     """Capture an image and save it in the current working directory."""

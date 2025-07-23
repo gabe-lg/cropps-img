@@ -4,7 +4,6 @@ import os
 import platform
 import src.sms_sender
 import time
-import uuid
 import src.db
 
 from matplotlib import use, pyplot as plt
@@ -13,6 +12,22 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from .db import insert_data
 
+PROCESSED_DIR = os.environ.get(
+    "PROCESSED_DIR",
+    r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images\processed"
+)
+PROCESSED_FILE_LIMIT = 20
+
+def _cleanup_processed():
+    if os.path.exists(PROCESSED_DIR):
+        images = sorted(
+            [os.path.join(PROCESSED_DIR, f) for f in os.listdir(PROCESSED_DIR) if f.endswith(".jpg")],
+            key=os.path.getmtime
+        )
+        if len(images) > PROCESSED_FILE_LIMIT:
+            for f in images[:-PROCESSED_FILE_LIMIT]:
+                os.remove(f)
+                print(f"[CLEANUP] Deleted old processed image: {f}")
 
 class Analyzer:
     def __init__(self):
@@ -193,6 +208,8 @@ class Analyzer:
             )
         except Exception as e:
             print("[DB ERROR from analyzer]", e)
+
+        _cleanup_processed()
 
         print(f"[ANALYSIS] Agitated: {res[0]}\n")
 
