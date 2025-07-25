@@ -14,8 +14,12 @@ from watchdog.events import FileSystemEventHandler
 from .db import insert_data
 
 
+
 class Analyzer:
     def __init__(self):
+        self.MAX_PROCESSED_IMAGES = 20
+
+
         # Change to your image directory (normalize slashes for platform!)
         self.dir = ".\\assets\\captured_data" if platform.system() == "Windows" \
             else "./assets/captured_data"
@@ -170,20 +174,32 @@ class Analyzer:
                             "Normalized intensity")
 
     def combin(self, image_path: str, sms_sender: src.sms_sender.SmsSender) \
-            -> tuple[bool, Optional[int]]:
-        print(f"[ANALYSIS] Processed: {image_path}")
-        a = self.detect_yellow_num(image_path)
-        b = self.normalize_brightness(image_path)
-        res = (a[0] and b[0], None)
+        -> tuple[bool, Optional[int]]:
 
-        # Decide what to store in DB: processed image path if temp input
-        if "/tmp/" in image_path:
-            fname = os.path.basename(image_path).replace(".png", "_processed.jpg")
-            final_path = os.path.join("/app/shared-images", fname)
-        else:
-            final_path = image_path
+        processed_dir = os.path.join("/app/shared-images", "processed")
+        os.makedirs(processed_dir, exist_ok=True)
+
+        basename = os.path.basename(image_path)
+        final_path = os.path.join(processed_dir, basename)
 
         try:
+            # Run analysis
+            a = self.detect_yellow_num(image_path)
+            b = self.normalize_brightness(image_path)
+            res = (a[0] and b[0], None)
+
+            # Save processed image
+            cv2.imwrite(final_path, cv2.imread(image_path))
+
+            # Trim old processed files
+            processed_imgs = sorted(
+                [f for f in os.listdir(processed_dir) if f.lower().endswith((".png", ".jpg", ".jpeg"))],
+                key=lambda x: os.path.getctime(os.path.join(processed_dir, x))
+            )
+            if len(processed_imgs) > self.MAX_PROCESSED_IMAGES:
+                for old_file in processed_imgs[:len(processed_imgs) - self.MAX_PROCESSED_IMAGES]:
+                    os.remove(os.path.join(processed_dir, old_file))
+
             print(f"[DEBUG] Inserting to DB: yellow={a[1]}, normalized={b[1]}, agitated={res[0]}, path={final_path}")
             src.db.insert_data(
                 yellow_pixels=a[1],
@@ -191,17 +207,21 @@ class Analyzer:
                 agitation=res[0],
                 image_path=final_path
             )
+
+            print(f"[ANALYSIS] Agitated: {res[0]}\n")
+
         except Exception as e:
-            print("[DB ERROR from analyzer]", e)
+            print(f"[DB ERROR from analyzer] {e}")
+            return False, None  # safely fallback
 
-        print(f"[ANALYSIS] Agitated: {res[0]}\n")
-
+        # Cooldown logic stays as is
         if self.cooldown_tmp:
             self.cooldown_tmp -= 1
         elif res[0] and not self.is_test and not sms_sender.send_sms():
             self.cooldown_tmp = self.cooldown
         print(f"Cooldown: {self.cooldown_tmp}")
         return res
+
 
 
 class ImageHandler(FileSystemEventHandler):
@@ -222,12 +242,7 @@ class ImageHandler(FileSystemEventHandler):
             for func in self.analyzer.functions:
                 func(event.src_path, self.sms_sender)
 
-    def handle_image(self, frame):
-        # Save frame temporarily so combin() can read from disk
-        tmp_path = f"/tmp/frame_{uuid.uuid4().hex}.png"
-        cv2.imwrite(tmp_path, frame)
-        self.analyzer.combin(tmp_path, self.sms_sender)
-        os.remove(tmp_path)
+
 
 class ObserverWrapper:
     def __init__(self, analyzer: Analyzer,
@@ -248,6 +263,7 @@ class ObserverWrapper:
             self.observer.stop()
             self.observer.join()
             print("stopped observer")
+
 
 
 class Histogram:
