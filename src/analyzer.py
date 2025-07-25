@@ -189,7 +189,9 @@ class Analyzer:
             res = (a[0] and b[0], None)
 
             # Save processed image
-            cv2.imwrite(final_path, cv2.imread(image_path))
+            frame = cv2.imread(image_path)
+            frame = self.paint_square(frame)
+            cv2.imwrite(final_path, frame)
 
             # Trim old processed files
             processed_imgs = sorted(
