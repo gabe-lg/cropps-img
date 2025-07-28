@@ -3,11 +3,10 @@ import os
 import time
 import numpy as np
 
-
 RAW_DIR = "./shared-images"
 PROCESSED_DIR = os.path.join(RAW_DIR, "processed")
 REFRESH_INTERVAL = 2  # seconds
-
+DISPLAY_HEIGHT = 350  # try 300–400 for comfort
 
 def get_latest_image(folder):
     images = [f for f in os.listdir(folder) if f.lower().endswith((".jpg", ".png", ".jpeg"))]
@@ -16,10 +15,15 @@ def get_latest_image(folder):
     images.sort(key=lambda x: os.path.getctime(os.path.join(folder, x)))
     return images[-1]
 
+def resize_image(img, height=DISPLAY_HEIGHT):
+    if img is None:
+        return None
+    scale = height / img.shape[0]
+    width = int(img.shape[1] * scale)
+    return cv2.resize(img, (width, height))
 
 def main():
     print("[DEMO] Viewer started. Press ESC to quit.")
-
     last_seen = ""
 
     while True:
@@ -40,19 +44,10 @@ def main():
                 print(f"[WARNING] Processed image not found: {processed_path}")
                 img_proc = 255 * np.ones_like(img_raw)  # white placeholder
 
-            # Resize both images to same height (e.g., 400px tall)
-            def resize_image(img, height=400):
-                if img is None:
-                    return None
-                scale = height / img.shape[0]
-                width = int(img.shape[1] * scale)
-                return cv2.resize(img, (width, height))
-
             img_raw_resized = resize_image(img_raw)
             img_proc_resized = resize_image(img_proc)
 
             combined = cv2.hconcat([img_raw_resized, img_proc_resized])
-
             cv2.imshow("CROPPS DEMO (Raw | Processed)", combined)
             print(f"[DEMO] Showing: {latest_raw}")
 
@@ -62,7 +57,6 @@ def main():
             break
 
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     main()
