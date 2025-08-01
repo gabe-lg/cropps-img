@@ -11,7 +11,7 @@ SCREENSHOT_DIRECTORY = os.environ.get(
     r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images"
 )
 CAPTURE_INTERVAL = 2
-FILE_LIMIT = 20
+FILE_LIMIT = 200
 
 
 class StoppableThread(threading.Thread):

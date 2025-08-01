@@ -34,14 +34,24 @@ def main():
             processed_path = os.path.join(PROCESSED_DIR, latest_raw)
 
             img_raw = cv2.imread(raw_path)
-            img_proc = cv2.imread(processed_path)
+
+            # Wait for processed image to appear (up to 2 seconds)
+            max_wait = 20  # 20 x 0.1s = 2s
+            wait_count = 0
+            img_proc = None
+            while wait_count < max_wait:
+                img_proc = cv2.imread(processed_path)
+                if img_proc is not None:
+                    break
+                time.sleep(0.1)
+                wait_count += 1
 
             if img_raw is None:
                 print(f"[WARNING] Could not read: {raw_path}")
                 continue
 
             if img_proc is None:
-                print(f"[WARNING] Processed image not found: {processed_path}")
+                print(f"[WARNING] Processed image NOT found after wait: {processed_path}")
                 img_proc = 255 * np.ones_like(img_raw)  # white placeholder
 
             img_raw_resized = resize_image(img_raw)

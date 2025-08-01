@@ -17,7 +17,7 @@ from .db import insert_data
 
 class Analyzer:
     def __init__(self):
-        self.MAX_PROCESSED_IMAGES = 20
+        self.MAX_PROCESSED_IMAGES = 200
 
 
         # Change to your image directory (normalize slashes for platform!)
@@ -223,9 +223,7 @@ class Analyzer:
             self.cooldown_tmp = self.cooldown
         print(f"Cooldown: {self.cooldown_tmp}")
         return res
-
-
-
+    
 class ImageHandler(FileSystemEventHandler):
     def __init__(self, analyzer: Analyzer,
                  sms_sender: src.sms_sender.SmsSender):
