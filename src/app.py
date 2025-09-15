@@ -108,6 +108,11 @@ class CameraApp(tk.Tk):
                 self.capture_task.set_frame(frame)
             # self.analyzer.paint_square(frame)
 
+            if self.recording and self.video_writer:
+                frame_3ch = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                frame_3ch = cv2.resize(frame_3ch, (CAMERA_WIDTH, CAMERA_HEIGHT))
+                self.video_writer.write(frame_3ch)
+
             pil_image = self._overlay_watermark(frame)
             pil_image = self._overlay_text(pil_image)
 
