@@ -13,7 +13,8 @@ class Camera:
         self.camera.close()
     
     def get_frame(self):
-        frame = self.camera.grab_image(timeout='10s', copy=True, exposure_time='10ms')
+        # frame = self.camera.grab_image(timeout='10s', copy=True, exposure_time='10ms')
+        frame = self.camera.latest_frame(copy=True)
         frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
         return frame
 

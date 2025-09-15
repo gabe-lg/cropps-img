@@ -15,10 +15,10 @@ if __name__ == "__main__" or __package__ is None:
 import src.analyzer
 import src.cutter_control
 import src.loggernet
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import capture_image, CaptureTask
-from src.driver_dnx64 import DNX64
 from src.camera import Camera
 
 # Paths
@@ -26,7 +26,6 @@ WATERMARK_PATH = Path(
     __file__).parent.parent / "assets" / "cropps_watermark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
 BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
-DNX64_PATH = 'C:\\Users\\CROPPS-in-Box\\Documents\\cropps main folder\\DNX64\\DNX64.dll'
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
@@ -86,15 +85,13 @@ class CameraApp(tk.Tk):
         self._animate_loading()
 
         # Initialize camera in separate thread
-        self._get_microscope(DNX64_PATH)
         self.camera = Camera()
-    # Initialize camera/UI setup on the main thread
-    self._init_camera_thread()
+        # Initialize camera/UI setup on the main thread
+        self._init_camera_thread()
 
     def quit(self):
         self.sms_sender.send_debug_msg("Exiting...")
-        self.stop_analysis()
-        self.camera.release()
+        # self.stop_analysis()
         self.destroy()
         super().quit()
 
@@ -263,72 +260,6 @@ class CameraApp(tk.Tk):
 
         sms_dialog.mainloop()
 
-    @threaded
-    def flash_leds(self):
-        """Flash the LED when the button is pressed."""
-        # TODO: Race condition with self._update_data
-        self.microscope.Init()
-        self.microscope.SetLEDState(0, 0)
-        time.sleep(COMMAND_TIME)
-        self.microscope.SetLEDState(0, 1)
-        time.sleep(COMMAND_TIME)
-
-    def show_exposure_dialog(self):
-        def apply():
-            value = exposure_entry.get()
-            if self._validate_exposure(value):
-                exposure_value = int(value)
-                self._set_exposure(exposure_value)
-                self.current_exposure = exposure_value
-                dialog.destroy()
-                (tkinter.messagebox
-                 .showinfo("Exposure",
-                           f"Exposure set to {exposure_value:,}"))
-            else:
-                error_label.config(
-                    text="Please enter a valid value between 100 and 60,000")
-
-        dialog = tk.Toplevel(self)
-        dialog.title("Exposure Settings")
-        dialog.geometry("400x200")
-        dialog.resizable(False, False)
-
-        content_frame = tk.Frame(dialog)
-        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        current_label = tk.Label(content_frame,
-                                 text=f"Current Exposure: {self.current_exposure:,}")
-        current_label.pack(pady=(0, 10))
-
-        input_frame = tk.Frame(content_frame)
-        input_frame.pack(fill="x", pady=10)
-
-        tk.Label(input_frame, text="New exposure (100-60,000):").pack(
-            side="left")
-        exposure_entry = tk.Entry(input_frame, width=10)
-        exposure_entry.pack(side="left", padx=10)
-
-        error_label = tk.Label(content_frame, text="", fg="red")
-        error_label.pack(pady=5)
-
-        button_frame = tk.Frame(content_frame)
-        button_frame.pack()
-
-        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
-            side="left", padx=5)
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
-                  width=10).pack(side="left", padx=5)
-
-        exposure_entry.bind("<Return>", lambda e: apply())
-
-        # Center the dialog on the main window
-        dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (
-                dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (
-                dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
-
     ## setup helpers ##
     def _animate_loading(self):
         """Animate the loading circle"""
@@ -394,18 +325,6 @@ class CameraApp(tk.Tk):
                                         command=self.sms_info)
         self.set_sms_button.pack(side="left", padx=10)
 
-        if self.microscope:
-            # LED Flash Button
-            self.flash_button = tk.Button(self.button_frame, text="Flash LEDs",
-                                          command=self.flash_leds)
-            self.flash_button.pack(side="left", padx=10)
-
-            # Set exposure button
-            self.exposure_button = tk.Button(self.button_frame,
-                                             text="Exposure Settings",
-                                             command=self.show_exposure_dialog)
-            self.exposure_button.pack(side="left", padx=10)
-
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
                                      command=self.quit)
@@ -415,51 +334,10 @@ class CameraApp(tk.Tk):
         self.button_frame.bind('<Configure>', on_frame_configure)
         self.button_canvas.bind('<Configure>', on_canvas_configure)
 
-    def _get_microscope(self, dnx64_path):
-        """Initialize microscope"""
-        # try:
-        #     self.microscope = DNX64(dnx64_path)
-        # except FileNotFoundError:
-        #     dnx64_path = (tkinter.simpledialog
-        #                   .askstring("DNX64 Path",
-        #                              "DNX64 file not found at"
-        #                              f"\n{dnx64_path}.\n"
-        #                              "Please enter your DNX64 path, or press "
-        #                              "cancel to use a regular camera:"))
-        #     if dnx64_path:
-        #         self._get_microscope(dnx64_path)
-        #     else:
-        #         self.microscope = None
-        #         (tkinter.messagebox
-        #          .showinfo("DNX64 Path",
-        #                    "DNX64 file not found, using a regular camera instead."))
-        self.microscope = None
-
     @threaded
     def _init_camera_thread(self):
         """Initialize camera in a separate thread"""
-        # if self.microscope:
-        #     try:
-        #         self.microscope.SetVideoDeviceIndex(DEVICE_INDEX)
-        #         self.microscope.Init()
-        #         self.current_exposure = self.microscope.GetExposureValue(
-        #             DEVICE_INDEX)
-        #     except OSError:
-        #         print(
-        #             "[DRIVER] Error: Video device not found. Please check your index.")
-        #         sys.exit(1)
-
-        # self.camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
-        # self.camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-        # self.camera.set(cv2.CAP_PROP_FOURCC,
-        #                 cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
-        # self.camera.set(cv2.CAP_PROP_FOURCC,
-        #                 cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        # self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-        # self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-
         self.after(0, self._setup_ui_after_camera)
-        # self.after(0, self._update_data)
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -528,7 +406,7 @@ class CameraApp(tk.Tk):
         self.capture_task = CaptureTask()
         self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
-        # self.sms_sender = src.sms_sender.SmsSender()
+        self.sms_sender = src.sms_sender.SmsSender()
         self.loggernet = src.loggernet.Loggernet()
         # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
         #                                                  self.sms_sender)
@@ -543,6 +421,7 @@ class CameraApp(tk.Tk):
         # Start camera feed
         self.update_camera_feed()
 
+    # !! TODO: REMOVE EXPOSURE/OTHER DINOLITE specific metadata
     ## other helpers ##
     def _overlay_text(self, pil_image):
         """Overlay text in the northeast corner of the frame"""
@@ -582,39 +461,7 @@ class CameraApp(tk.Tk):
         )
         return pil_image
 
-    @threaded
-    def _set_exposure(self, exposure):
-        self.microscope.Init()
-        self.microscope.SetAutoExposure(DEVICE_INDEX, 0)
-        self.microscope.SetExposureValue(DEVICE_INDEX, exposure)
-        time.sleep(QUERY_TIME)
-
-    @threaded
-    def _update_data(self):
-        """Update the AMR and FOV values in background."""
-        if self.microscope and self.camera and self.show_data:
-            # TODO: Suppress print statements
-            # TODO: amr is always 0
-            self.microscope.Init()
-            self.amr = round(self.microscope.GetAMR(DEVICE_INDEX), 1)
-            self.fov = round(self.microscope.FOVx(
-                DEVICE_INDEX, self.amr) / 1000, 2)
-        self.after(500, self._update_data)
-
-    def _validate_exposure(self, value):
-        """Validate that the exposure value is between 100 and 60000."""
-        try:
-            value = int(value)
-            if 100 <= value <= 60000:
-                return True
-            else:
-                return False
-        except ValueError:
-            return False
-
-
 def main():
     app = CameraApp()
     # threading.Thread(target=src.cutter_control.cutter_app).start()
-    # app.update_camera_feed()  # Start the camera feed update loop
     app.mainloop()
