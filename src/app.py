@@ -3,15 +3,23 @@ import threading
 import time
 import tkinter as tk
 import tkinter.simpledialog, tkinter.messagebox
+import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path when running this file directly
+if __name__ == "__main__" or __package__ is None:
+    _project_root = str(Path(__file__).resolve().parents[1])
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+
 import src.analyzer
 import src.cutter_control
 import src.loggernet
-import sys
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import capture_image, CaptureTask
 from src.driver_dnx64 import DNX64
+from src.camera import Camera
 
 # Paths
 WATERMARK_PATH = Path(
@@ -46,8 +54,8 @@ class CameraApp(tk.Tk):
 
         # TODO: reduce latency. For now, at least disallow window resizing
         #  since it crashes the app
-        self.resizable(False, False)
-        self.attributes('-fullscreen', True)
+        # self.resizable(False, False)
+        # self.attributes('-fullscreen', True)
 
         # Show loading screen in main window
         self.loading_frame = tk.Frame(self)
@@ -79,8 +87,9 @@ class CameraApp(tk.Tk):
 
         # Initialize camera in separate thread
         self._get_microscope(DNX64_PATH)
-        self.camera = None
-        self._init_camera_thread()
+        self.camera = Camera()
+    # Initialize camera/UI setup on the main thread
+    self._init_camera_thread()
 
     def quit(self):
         self.sms_sender.send_debug_msg("Exiting...")
@@ -92,12 +101,15 @@ class CameraApp(tk.Tk):
     ## main update function ##
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
-        if not (hasattr(self, 'camera') and self.camera): return
+        if not (hasattr(self, 'camera') and self.camera):
+            return
 
-        ret, frame = self.camera.read()
-        if ret:
-            self.capture_task.set_frame(frame)
-            self.analyzer.paint_square(frame)
+        frame = self.camera.get_frame()
+        if frame is not None:
+            # Only set frame if capture_task is initialized
+            if hasattr(self, 'capture_task') and self.capture_task is not None:
+                self.capture_task.set_frame(frame)
+            # self.analyzer.paint_square(frame)
 
             pil_image = self._overlay_watermark(frame)
             pil_image = self._overlay_text(pil_image)
@@ -107,10 +119,10 @@ class CameraApp(tk.Tk):
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # update loggernet graph
-        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        self.loggernet_canvas.draw_idle()
-        self.histogram.update(frame)
-        self.histogram_canvas.draw_idle()
+        # if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        # self.loggernet_canvas.draw_idle()
+        # self.histogram.update(frame)
+        # self.histogram_canvas.draw_idle()
 
         self.after(10, self.update_camera_feed)
 
@@ -118,9 +130,12 @@ class CameraApp(tk.Tk):
     @threaded
     def capture(self):
         """Capture an image when the button is pressed."""
-        ret, frame = self.camera.read()
-        if ret: capture_image(frame)
-        tkinter.messagebox.showinfo("Capture", "Image captured successfully.")
+        frame = self.camera.get_frame()
+        if frame is not None:
+            capture_image(frame)
+            tkinter.messagebox.showinfo("Capture", "Image captured successfully.")
+        else:
+            tkinter.messagebox.showerror("Capture", "Failed to capture image.")
 
     def start_recording(self):
         """Start recording video."""
@@ -402,48 +417,49 @@ class CameraApp(tk.Tk):
 
     def _get_microscope(self, dnx64_path):
         """Initialize microscope"""
-        try:
-            self.microscope = DNX64(dnx64_path)
-        except FileNotFoundError:
-            dnx64_path = (tkinter.simpledialog
-                          .askstring("DNX64 Path",
-                                     "DNX64 file not found at"
-                                     f"\n{dnx64_path}.\n"
-                                     "Please enter your DNX64 path, or press "
-                                     "cancel to use a regular camera:"))
-            if dnx64_path:
-                self._get_microscope(dnx64_path)
-            else:
-                self.microscope = None
-                (tkinter.messagebox
-                 .showinfo("DNX64 Path",
-                           "DNX64 file not found, using a regular camera instead."))
+        # try:
+        #     self.microscope = DNX64(dnx64_path)
+        # except FileNotFoundError:
+        #     dnx64_path = (tkinter.simpledialog
+        #                   .askstring("DNX64 Path",
+        #                              "DNX64 file not found at"
+        #                              f"\n{dnx64_path}.\n"
+        #                              "Please enter your DNX64 path, or press "
+        #                              "cancel to use a regular camera:"))
+        #     if dnx64_path:
+        #         self._get_microscope(dnx64_path)
+        #     else:
+        #         self.microscope = None
+        #         (tkinter.messagebox
+        #          .showinfo("DNX64 Path",
+        #                    "DNX64 file not found, using a regular camera instead."))
+        self.microscope = None
 
     @threaded
     def _init_camera_thread(self):
         """Initialize camera in a separate thread"""
-        if self.microscope:
-            try:
-                self.microscope.SetVideoDeviceIndex(DEVICE_INDEX)
-                self.microscope.Init()
-                self.current_exposure = self.microscope.GetExposureValue(
-                    DEVICE_INDEX)
-            except OSError:
-                print(
-                    "[DRIVER] Error: Video device not found. Please check your index.")
-                sys.exit(1)
+        # if self.microscope:
+        #     try:
+        #         self.microscope.SetVideoDeviceIndex(DEVICE_INDEX)
+        #         self.microscope.Init()
+        #         self.current_exposure = self.microscope.GetExposureValue(
+        #             DEVICE_INDEX)
+        #     except OSError:
+        #         print(
+        #             "[DRIVER] Error: Video device not found. Please check your index.")
+        #         sys.exit(1)
 
-        self.camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
-        self.camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-        self.camera.set(cv2.CAP_PROP_FOURCC,
-                        cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
-        self.camera.set(cv2.CAP_PROP_FOURCC,
-                        cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+        # self.camera = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)
+        # self.camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+        # self.camera.set(cv2.CAP_PROP_FOURCC,
+        #                 cv2.VideoWriter.fourcc('m', 'j', 'p', 'g'))
+        # self.camera.set(cv2.CAP_PROP_FOURCC,
+        #                 cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
+        # self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        # self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
 
         self.after(0, self._setup_ui_after_camera)
-        self.after(0, self._update_data)
+        # self.after(0, self._update_data)
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -512,10 +528,10 @@ class CameraApp(tk.Tk):
         self.capture_task = CaptureTask()
         self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
-        self.sms_sender = src.sms_sender.SmsSender()
+        # self.sms_sender = src.sms_sender.SmsSender()
         self.loggernet = src.loggernet.Loggernet()
-        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-                                                         self.sms_sender)
+        # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
+        #                                                  self.sms_sender)
 
         # Setup UI components
         self._setup_scroll_frame()

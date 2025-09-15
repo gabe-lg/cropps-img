@@ -4,3 +4,6 @@ opencv-python
 pillow
 requests
 watchdog
+instrumental-lib
+pywin32
+nicelib
