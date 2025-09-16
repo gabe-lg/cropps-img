@@ -1,6 +1,6 @@
 matplotlib
 numpy
-opencv_python
+opencv-python
 pillow
 requests
 watchdog
