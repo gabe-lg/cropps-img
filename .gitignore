@@ -1,11 +1,22 @@
-**/__pycache__git
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Environment & IDE
 .env*
-.idea
-.venv
+.venv/
+.idea/
+
+# Output/media files
 *.png
 *.avi
 *.zip
-*.pyc
+*.tar
 
-!assets/*
+# Shared image data (but keep folder)
+shared-images/*
+!shared-images/.gitkeep
+
+# Assets
 assets/data.csv
+!assets/

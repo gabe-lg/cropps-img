@@ -1,18 +1,22 @@
-import cv2
-import numpy as np
 import os
 import platform
-import src.sms_sender
 import time
-
-from matplotlib import use, pyplot as plt
 from typing import Any, Callable, Optional, Union
-from watchdog.observers import Observer
+
+import cv2
+import numpy as np
+from matplotlib import use, pyplot as plt
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
+import src.db
+import src.sms_sender
 
 
 class Analyzer:
     def __init__(self):
+        self.MAX_PROCESSED_IMAGES = 200
+
         # Change to your image directory (normalize slashes for platform!)
         self.dir = ".\\assets\\captured_data" if platform.system() == "Windows" \
             else "./assets/captured_data"
@@ -171,6 +175,51 @@ class Analyzer:
             extracted: extracted > self.threshold_normalized_total,
                             "Normalized intensity")
 
+    def combin(self, image_path: str):
+        processed_dir = os.path.join("/app/shared-images", "processed")
+        os.makedirs(processed_dir, exist_ok=True)
+
+        basename = os.path.basename(image_path)
+        final_path = os.path.join(processed_dir, basename)
+
+        try:
+            # Run analysis
+            a = self.detect_yellow_num(image_path)
+            b = self.normalize_brightness(image_path)
+            res = (a[0] and b[0], None)
+
+            # Save processed image
+            frame = cv2.imread(image_path)
+            frame = self.paint_square(frame)
+            cv2.imwrite(final_path, frame)
+
+            # Trim old processed files
+            processed_imgs = sorted(
+                [f for f in os.listdir(processed_dir) if
+                 f.lower().endswith((".png", ".jpg", ".jpeg"))],
+                key=lambda x: os.path.getctime(os.path.join(processed_dir, x))
+            )
+            if len(processed_imgs) > self.MAX_PROCESSED_IMAGES:
+                for old_file in processed_imgs[
+                    :len(processed_imgs) - self.MAX_PROCESSED_IMAGES]:
+                    os.remove(os.path.join(processed_dir, old_file))
+
+            print(
+                f"[DEBUG] Inserting to DB: yellow={a[1]}, normalized={b[1]}, agitated={res[0]}, path={final_path}")
+            src.db.insert_data(
+                yellow_pixels=a[1],
+                normalized_pixels=b[1],
+                agitation=res[0],
+                image_path=final_path
+            )
+
+            print(f"[ANALYSIS] Agitated: {res[0]}\n")
+
+        except Exception as e:
+            print(f"[DB ERROR from analyzer] {e}")
+
+        # Cooldown logic stays as is
+
     def detect_sparse_bright_pixels(self, image_path: str) -> tuple[bool, int]:
         """
         Detects agitation by looking for sparse bright pixels.
@@ -195,33 +244,6 @@ class Analyzer:
         return self._detect(image_path, count_bright_pixels, is_agitated,
                             "Sparse bright pixels")
 
-    def combin(self, image_path: str,
-               sms_sender: src.sms_sender.SmsSender = None) \
-            -> tuple[bool, Optional[int]]:
-        """
-        The image is categorized as "agitated" if and only if all the functions
-        above categorizes it as "agitated".
-        """
-        if sms_sender: sms_sender.send_debug_msg(
-            f"[ANALYSIS] Processed: {image_path}")
-        a = self.detect_yellow_num(image_path)
-        b = self.normalize_brightness(image_path)
-        c = self.detect_sparse_bright_pixels(image_path)
-        if sms_sender: sms_sender.send_debug_msg(f"{c}")
-        res = (c[0], None)
-        if sms_sender: sms_sender.send_debug_msg(
-            f"[ANALYSIS] Agitated: {res[0]}\n")
-        if self.cooldown_tmp:
-            self.cooldown_tmp -= 1
-        elif res[0] and not self.is_test:
-            self.agitated_count += 1
-            self.agitated_count %= 2
-
-            if not self.agitated_count and sms_sender and not sms_sender.send_sms():
-                self.cooldown_tmp = self.cooldown
-                sms_sender.send_debug_msg(f"Cooldown: {self.cooldown_tmp}")
-        return res
-
 
 class ImageHandler(FileSystemEventHandler):
     def __init__(self, analyzer: Analyzer,
@@ -234,25 +256,26 @@ class ImageHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         file_name = os.path.basename(event.src_path)
+        if "_processed" in file_name.lower():
+            return  # Skip processed images
         if file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif')):
-            p = event.src_path
-            for i in range(len(self.analyzer.functions)):
-                self.analyzer.functions[i](p, self.sms_sender)
+            print(f"[HEADLESS] Processing new image: {event.src_path}")
+            # for func in self.analyzer.functions: func(event.src_path)
+            self.analyzer.combin(event.src_path)
 
 
 class ObserverWrapper:
     def __init__(self, analyzer: Analyzer,
-                 sms_sender: src.sms_sender.SmsSender):
-        self.event_handler = ImageHandler(analyzer, sms_sender)
-        self.observer = Observer()
-        # Set up file monitoring
+                 sms_sender: src.sms_sender.SmsSender,
+                 image_dir="./assets/captured_data"):
         self.event_handler = ImageHandler(analyzer, sms_sender)
         self.observer = Observer()
         self.analyzer = analyzer
+        self.image_dir = image_dir
 
     def start_monitoring(self):
-        print(f"Monitoring directory: {self.analyzer.dir} for new images...")
-        self.observer.schedule(self.event_handler, self.analyzer.dir,
+        print(f"Monitoring directory: {self.image_dir} for new images...")
+        self.observer.schedule(self.event_handler, self.image_dir,
                                recursive=False)
         self.observer.start()
 
