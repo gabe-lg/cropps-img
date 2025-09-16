@@ -38,7 +38,9 @@ class StoppableThread(threading.Thread):
 
 class CaptureTask(StoppableThread):
     """Thread that captures an image every `CAPTURE_INTERVAL` seconds."""
-    frame = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.frame = None
 
     def run(self):
         print("[DRIVER] Capture thread started.")

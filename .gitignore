@@ -20,3 +20,6 @@ shared-images/*
 # Assets
 assets/data.csv
 !assets/
+
+yacctab.py
+lextab.py

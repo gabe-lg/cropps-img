@@ -1,8 +1,11 @@
+instrumental-lib
 matplotlib
+nicelib
 numpy
 opencv-python-headless
 opencv-python
 pillow
+psycopg2-binary
+pywin32
 requests
 watchdog
-psycopg2-binary

@@ -38,7 +38,8 @@ class SmsSender:
             print("SMS sending limit increased.")
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e}")
-        os.chdir(oldpwd)
+        finally:
+            os.chdir(oldpwd)
 
     def set_info(self, contact_name: str, contact_phone: str):
         """
@@ -74,16 +75,16 @@ class SmsSender:
 
         # Change the current working directory to where adb works
         oldpwd = os.getcwd()
-        os.chdir(self.dir)
 
         # Execute the command
         try:
+            os.chdir(self.dir)
             subprocess.run(command, check=True)
             print(f"Message sent to {self.phone}: {message}")
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e}")
-
-        os.chdir(oldpwd)
+        finally:
+            os.chdir(oldpwd)
 
     def read_msg(self, days_ago: int = 0):
         """
