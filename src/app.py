@@ -1,10 +1,12 @@
-import cv2
+import sys
 import threading
 import time
 import tkinter as tk
-import tkinter.simpledialog, tkinter.messagebox
-import sys
+import tkinter.messagebox
+import tkinter.simpledialog
 from pathlib import Path
+
+import cv2
 
 # Ensure project root is on sys.path when running this file directly
 if __name__ == "__main__" or __package__ is None:
@@ -92,6 +94,7 @@ class CameraApp(tk.Tk):
     def quit(self):
         self.sms_sender.send_debug_msg("Exiting...")
         # self.stop_analysis()
+        # self.camera.release()
         self.destroy()
         super().quit()
 
@@ -135,7 +138,8 @@ class CameraApp(tk.Tk):
         frame = self.camera.get_frame()
         if frame is not None:
             capture_image(frame)
-            tkinter.messagebox.showinfo("Capture", "Image captured successfully.")
+            tkinter.messagebox.showinfo("Capture",
+                                        "Image captured successfully.")
         else:
             tkinter.messagebox.showerror("Capture", "Failed to capture image.")
 
@@ -465,6 +469,7 @@ class CameraApp(tk.Tk):
             self.watermark,
         )
         return pil_image
+
 
 def main():
     app = CameraApp()

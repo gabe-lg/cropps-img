@@ -175,6 +175,30 @@ class Analyzer:
             extracted: extracted > self.threshold_normalized_total,
                             "Normalized intensity")
 
+    def detect_sparse_bright_pixels(self, image_path: str) -> tuple[bool, int]:
+        """
+        Detects agitation by looking for sparse bright pixels.
+        Returns True (agitated) when there are FEW bright pixels (between min and max thresholds).
+        Returns False when there are too many or too few bright pixels.
+        """
+
+        # TODO: THIS IS A BETTER BUT STILL REALLY BAD FUNCTION
+        def count_bright_pixels(img):
+            # Count pixels above brightness threshold
+            bright_pixels = np.count_nonzero(img > self.threshold_bright)
+            return bright_pixels
+
+        def is_agitated(count):
+            # Define min and max thresholds for number of bright pixels
+            MIN_BRIGHT_PIXELS = 1000  # Minimum number to consider valid
+            MAX_BRIGHT_PIXELS = 500000  # Maximum number before considered too bright
+
+            # Return True only if count is between min and max
+            return MIN_BRIGHT_PIXELS <= count <= MAX_BRIGHT_PIXELS
+
+        return self._detect(image_path, count_bright_pixels, is_agitated,
+                            "Sparse bright pixels")
+
     def combin(self, image_path: str):
         processed_dir = os.path.join("/app/shared-images", "processed")
         os.makedirs(processed_dir, exist_ok=True)
@@ -219,30 +243,6 @@ class Analyzer:
             print(f"[DB ERROR from analyzer] {e}")
 
         # Cooldown logic stays as is
-
-    def detect_sparse_bright_pixels(self, image_path: str) -> tuple[bool, int]:
-        """
-        Detects agitation by looking for sparse bright pixels.
-        Returns True (agitated) when there are FEW bright pixels (between min and max thresholds).
-        Returns False when there are too many or too few bright pixels.
-        """
-
-        # TODO: THIS IS A BETTER BUT STILL REALLY BAD FUNCTION
-        def count_bright_pixels(img):
-            # Count pixels above brightness threshold
-            bright_pixels = np.count_nonzero(img > self.threshold_bright)
-            return bright_pixels
-
-        def is_agitated(count):
-            # Define min and max thresholds for number of bright pixels
-            MIN_BRIGHT_PIXELS = 1000  # Minimum number to consider valid
-            MAX_BRIGHT_PIXELS = 500000  # Maximum number before considered too bright
-
-            # Return True only if count is between min and max
-            return MIN_BRIGHT_PIXELS <= count <= MAX_BRIGHT_PIXELS
-
-        return self._detect(image_path, count_bright_pixels, is_agitated,
-                            "Sparse bright pixels")
 
 
 class ImageHandler(FileSystemEventHandler):
