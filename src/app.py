@@ -7,6 +7,7 @@ import tkinter.simpledialog
 from pathlib import Path
 
 import cv2
+from instrumental import Q_
 
 # Ensure project root is on sys.path when running this file directly
 if __name__ == "__main__" or __package__ is None:
@@ -31,7 +32,7 @@ BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
-CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 30
+CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 2
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
@@ -51,10 +52,9 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         # TODO: add button that toggles whether data is displayed in camera feed
+        self.show_logger = False
         self.show_data = True
 
-        # TODO: reduce latency. For now, at least disallow window resizing
-        #  since it crashes the app
         # self.resizable(False, False)
         # self.attributes('-fullscreen', True)
 
@@ -107,8 +107,8 @@ class CameraApp(tk.Tk):
         frame = self.camera.get_frame()
         if frame is not None:
             # Only set frame if capture_task is initialized
-            if hasattr(self, 'capture_task') and self.capture_task is not None:
-                self.capture_task.set_frame(frame)
+            # if hasattr(self, 'capture_task') and self.capture_task is not None:
+            # self.capture_task.set_frame(frame)
             # self.analyzer.paint_square(frame)
 
             if self.recording and self.video_writer:
@@ -152,9 +152,9 @@ class CameraApp(tk.Tk):
             self.recording = True
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"video_{timestamp}.avi"
+            filename = f"saves/video_{timestamp}.mp4"
             fourcc = cv2.VideoWriter.fourcc(*'XVID')
-            self.video_writer = cv2.VideoWriter(filename, fourcc, CAMERA_FPS,
+            self.video_writer = cv2.VideoWriter(filename, fourcc, self.camera.get_measured_frame_rate_fps,
                                                 (CAMERA_WIDTH, CAMERA_HEIGHT))
             tkinter.messagebox.showinfo("Recording",
                                         f"Video recording started: "
@@ -269,6 +269,67 @@ class CameraApp(tk.Tk):
 
         sms_dialog.mainloop()
 
+    def show_exposure_dialog(self):
+        mn, mx = 0.06675, 99.92475
+
+        def apply():
+            value = {"min": mn, "max": mx}.get(
+                exposure_entry.get().lower().strip(), exposure_entry.get())
+
+            if self._validate_exposure(value, mn, mx):
+                exposure_value = Q_(float(value), 'millisecond')
+                self.camera.camera.exposure = exposure_value
+                dialog.destroy()
+                (tkinter.messagebox
+                 .showinfo("Exposure",
+                           f"Exposure set to {exposure_value:,}s"))
+            else:
+                error_label.config(
+                    text=f"Please enter a valid value between {mn} and {mx}.")
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Exposure Settings")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+
+        content_frame = tk.Frame(dialog)
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        current_label = tk.Label(content_frame,
+                                 text=f"Current Exposure: {self.camera.camera.exposure:,}s")
+        current_label.pack(pady=(0, 10))
+
+        input_frame = tk.Frame(content_frame)
+        input_frame.pack(fill="x", pady=5)
+
+        tk.Label(input_frame, text="New exposure:").pack(
+            side="left")
+        exposure_entry = tk.Entry(input_frame, width=25)
+        exposure_entry.pack(side="left", padx=10)
+        tk.Label(input_frame, text="milliseconds").pack(
+            side="left", padx=5)
+
+        error_label = tk.Label(content_frame, text='Or type "min" or "max"', fg="red")
+        error_label.pack(pady=5)
+
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack()
+
+        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
+            side="left", padx=5)
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(side="left", padx=5)
+
+        exposure_entry.bind("<Return>", lambda e: apply())
+
+        # Center the dialog on the main window
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+
     ## setup helpers ##
     def _animate_loading(self):
         """Animate the loading circle"""
@@ -334,6 +395,12 @@ class CameraApp(tk.Tk):
                                         command=self.sms_info)
         self.set_sms_button.pack(side="left", padx=10)
 
+        # Set exposure button
+        self.exposure_button = tk.Button(self.button_frame,
+                                         text="Exposure Settings",
+                                         command=self.show_exposure_dialog)
+        self.exposure_button.pack(side="left", padx=10)
+
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
                                      command=self.quit)
@@ -366,25 +433,27 @@ class CameraApp(tk.Tk):
     def _setup_canvases(self):
         """Setup main canvas and graph canvases"""
         # Camera feed canvas
-        self.canvas = tk.Canvas(self, width=WINDOW_WIDTH / 2,
+        width = WINDOW_WIDTH / 2 if self.show_logger else WINDOW_WIDTH
+        self.canvas = tk.Canvas(self, width=width,
                                 height=WINDOW_HEIGHT)
         self.canvas.pack(side="left")
 
-        # Loggernet graph canvas
-        frame = tk.Frame(self)
-        frame.pack(anchor="nw", padx=10, pady=10)
-        self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
-                                                  master=frame)
-        self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
+        if self.show_logger:
+            # Loggernet graph canvas
+            frame = tk.Frame(self)
+            frame.pack(anchor="nw", padx=10, pady=10)
+            self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+                                                      master=frame)
+            self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
 
-        # Histogram canvas
-        frame = tk.Frame(self)
-        frame.pack(anchor="sw", padx=10, pady=10)
-        self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
-                                                  master=frame)
-        self.histogram_canvas.get_tk_widget().pack(anchor="sw")
+            # Histogram canvas
+            frame = tk.Frame(self)
+            frame.pack(anchor="sw", padx=10, pady=10)
+            self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+                                                      master=frame)
+            self.histogram_canvas.get_tk_widget().pack(anchor="sw")
 
-        self.imgtk = None  # Initialize a reference to avoid garbage collection
+            self.imgtk = None  # Initialize a reference to avoid garbage collection
 
     def _setup_scroll_frame(self):
         """Setup scroll frame for buttons"""
@@ -469,6 +538,17 @@ class CameraApp(tk.Tk):
             self.watermark,
         )
         return pil_image
+
+    def _validate_exposure(self, value, mn, mx):
+        """Validate that the exposure value is between 100 and 60000."""
+        try:
+            value = float(value)
+            if mn <= value <= mx:
+                return True
+            else:
+                return False
+        except ValueError:
+            return False
 
 
 def main():

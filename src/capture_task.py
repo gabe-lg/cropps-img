@@ -1,11 +1,11 @@
-import cv2
 import os
-import platform
 import shutil
 import threading
 import time
 
-from driver_dnx64 import DNX64  # SDK wrapper from same folder
+import cv2
+
+# from driver_dnx64 import DNX64  # SDK wrapper from same folder
 
 # Constants
 DLL_PATH = r"C:\Users\17177\Desktop\research\cropps-img-headless\dino-lite-sdk\DNX64.dll"
@@ -13,9 +13,9 @@ DEVICE_INDEX = 0
 EXPOSURE_VALUE = 3000  # Feel free to tweak this (range: 100–60000)
 
 # the pictures from microscope are now saved in shared folder
-SCREENSHOT_DIRECTORY = os.environ.get(
-    "CAPTURE_DIR",
-    r"C:\Users\17177\Desktop\cropps-img-half\cropps-img\shared-images"
+SCREENSHOT_DIRECTORY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "../saves"
 )
 CAPTURE_INTERVAL = 2
 FILE_LIMIT = 200
@@ -38,6 +38,7 @@ class StoppableThread(threading.Thread):
 
 class CaptureTask(StoppableThread):
     """Thread that captures an image every `CAPTURE_INTERVAL` seconds."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.frame = None
