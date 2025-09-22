@@ -5,7 +5,8 @@ import cv2
 class Camera:
     def __init__(self):
         self.camera = instrument('uc480')
-        self.camera.start_live_video(framerate = "10Hz", exposure_time="500ms")
+        self.camera.start_live_video(framerate = "2Hz", exposure_time="50ms")
+        self.camera.pixelclock = "5MHz"
 
     # destructor
     def __del__(self):

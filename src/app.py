@@ -154,8 +154,10 @@ class CameraApp(tk.Tk):
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = f"saves/video_{timestamp}.mp4"
             fourcc = cv2.VideoWriter.fourcc(*'XVID')
-            self.video_writer = cv2.VideoWriter(filename, fourcc, self.camera.get_measured_frame_rate_fps,
-                                                (CAMERA_WIDTH, CAMERA_HEIGHT))
+            self.video_writer = cv2.VideoWriter(
+                filename, fourcc,
+                int(1 / self.camera.camera.framerate.to("hertz").magnitude),
+                (CAMERA_WIDTH, CAMERA_HEIGHT))
             tkinter.messagebox.showinfo("Recording",
                                         f"Video recording started: "
                                         f"{filename}\nPress SPACE to stop.")
@@ -276,13 +278,14 @@ class CameraApp(tk.Tk):
             value = {"min": mn, "max": mx}.get(
                 exposure_entry.get().lower().strip(), exposure_entry.get())
 
-            if self._validate_exposure(value, mn, mx):
+            # if self._validate_exposure(value, mn, mx):
+            if True:
                 exposure_value = Q_(float(value), 'millisecond')
                 self.camera.camera.exposure = exposure_value
                 dialog.destroy()
                 (tkinter.messagebox
                  .showinfo("Exposure",
-                           f"Exposure set to {exposure_value:,}s"))
+                           f"Exposure set to {self.camera.camera.exposure}s"))
             else:
                 error_label.config(
                     text=f"Please enter a valid value between {mn} and {mx}.")
@@ -309,7 +312,69 @@ class CameraApp(tk.Tk):
         tk.Label(input_frame, text="milliseconds").pack(
             side="left", padx=5)
 
-        error_label = tk.Label(content_frame, text='Or type "min" or "max"', fg="red")
+        error_label = tk.Label(content_frame, text="",
+                               fg="red")
+        error_label.pack(pady=5)
+
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack()
+
+        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
+            side="left", padx=5)
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(side="left", padx=5)
+
+        exposure_entry.bind("<Return>", lambda e: apply())
+
+        # Center the dialog on the main window
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+    def show_fps_dialog(self):
+        mn, mx = 0.06675, 99.92475
+
+        def apply():
+            exposure_value = exposure_entry.get()
+            self.camera.camera.stop_live_video()
+            self.camera.camera.start_live_video(
+                framerate=f"{float(exposure_value)}Hz",
+                exposure_time="0.1ms")
+            dialog.destroy()
+            (tkinter.messagebox
+             .showinfo("Framerate",
+                       f"Framerate set to {self.camera.camera.framerate}Hz"))
+
+            # error_label.config(
+            #     text=f"Please enter a valid value between {mn} and {mx}.")
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Framerate Settings")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+
+        content_frame = tk.Frame(dialog)
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        current_label = tk.Label(content_frame,
+                                 text=f"Current Framerate: {self.camera.camera.framerate:,}s")
+        current_label.pack(pady=(0, 10))
+
+        input_frame = tk.Frame(content_frame)
+        input_frame.pack(fill="x", pady=5)
+
+        tk.Label(input_frame, text="New exposure:").pack(
+            side="left")
+        exposure_entry = tk.Entry(input_frame, width=25)
+        exposure_entry.pack(side="left", padx=10)
+        tk.Label(input_frame, text="milliseconds").pack(
+            side="left", padx=5)
+
+        error_label = tk.Label(content_frame, text='Or type "min" or "max"',
+                               fg="red")
         error_label.pack(pady=5)
 
         button_frame = tk.Frame(content_frame)
@@ -397,9 +462,15 @@ class CameraApp(tk.Tk):
 
         # Set exposure button
         self.exposure_button = tk.Button(self.button_frame,
-                                         text="Exposure Settings",
+                                         text="Change Exposure",
                                          command=self.show_exposure_dialog)
         self.exposure_button.pack(side="left", padx=10)
+
+        # Set fps button
+        self.fps_button = tk.Button(self.button_frame,
+                                    text="Change Framerate",
+                                    command=self.show_fps_dialog)
+        self.fps_button.pack(side="left", padx=10)
 
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
@@ -414,6 +485,10 @@ class CameraApp(tk.Tk):
     def _init_camera_thread(self):
         """Initialize camera in a separate thread"""
         self.after(0, self._setup_ui_after_camera)
+
+    @threaded
+    def _init_sms_receiver(self):
+        threading.Thread(target=self.sms_sender.read_msg, args=(2,)).start()
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -497,6 +572,7 @@ class CameraApp(tk.Tk):
         self.imgtk = None
 
         # Start camera feed
+        self._init_sms_receiver()
         self.update_camera_feed()
 
     # !! TODO: REMOVE EXPOSURE/OTHER DINOLITE specific metadata
