@@ -53,7 +53,7 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         # TODO: add button that toggles whether data is displayed in camera feed
-        self.show_logger = False
+        self.show_logger = True
         self.show_data = True
 
         # self.resizable(False, False)
@@ -123,10 +123,10 @@ class CameraApp(tk.Tk):
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
         # update loggernet graph
-        # if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        # self.loggernet_canvas.draw_idle()
-        # self.histogram.update(frame)
-        # self.histogram_canvas.draw_idle()
+        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        self.loggernet_canvas.draw_idle()
+        self.histogram.update(frame)
+        self.histogram_canvas.draw_idle()
 
         self.after(1000 // self.camera.get_fps(), self.update_camera_feed)
 
@@ -178,7 +178,7 @@ class CameraApp(tk.Tk):
             fg="darkgreen",
             command=self.start_analysis
         )
-        self.capture_task = CaptureTask()
+        self.capture_task = CaptureTask(self.camera)
         self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
                                                          self.sms_sender)
 
@@ -585,13 +585,13 @@ class CameraApp(tk.Tk):
         self.recording = False
         self.video_writer = None
         self.analyzing = False
-        self.capture_task = CaptureTask()
+        self.capture_task = CaptureTask(self.camera)
         self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
         self.loggernet = src.loggernet.Loggernet()
-        # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-        #                                                  self.sms_sender)
+        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
+                                                         self.sms_sender)
 
         # Setup UI components
         self._setup_scroll_frame()

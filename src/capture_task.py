@@ -13,10 +13,7 @@ DEVICE_INDEX = 0
 EXPOSURE_VALUE = 3000  # Feel free to tweak this (range: 100–60000)
 
 # the pictures from microscope are now saved in shared folder
-SCREENSHOT_DIRECTORY = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../saves"
-)
+SCREENSHOT_DIRECTORY = r"C:\Users\CROPPS-in-Box\Documents\cropps main folder\cropps-img\assets\captured_data"
 CAPTURE_INTERVAL = 2
 FILE_LIMIT = 200
 
@@ -39,38 +36,16 @@ class StoppableThread(threading.Thread):
 class CaptureTask(StoppableThread):
     """Thread that captures an image every `CAPTURE_INTERVAL` seconds."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, camera, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.frame = None
+        self.camera = camera
 
     def run(self):
         print("[DRIVER] Capture thread started.")
 
-        # === SET EXPOSURE USING SDK ===
-        try:
-            dino = DNX64(DLL_PATH)
-            if dino.Init():
-                dino.SetVideoDeviceIndex(DEVICE_INDEX)
-                dino.SetAutoExposure(DEVICE_INDEX, 0)  # Manual mode
-                dino.SetExposureValue(DEVICE_INDEX, EXPOSURE_VALUE)
-                print(f"[DRIVER] Exposure set to {EXPOSURE_VALUE} via SDK.")
-            else:
-                print("[DRIVER] Dino SDK failed to initialize. Skipping exposure config.")
-        except Exception as e:
-            print(f"[DRIVER] SDK Error: {e}")
-            print("[DRIVER] Continuing with default exposure settings.")
-
-        # Start camera
-        self.cam = cv2.VideoCapture(DEVICE_INDEX, cv2.CAP_DSHOW)  # DSHOW preferred for Dino
-        if not self.cam.isOpened():
-            raise Exception("Could not open Dino Lite camera")
+        frame = self.camera.get_frame()
 
         while not self.stopped():
-            ret, frame = self.cam.read()
-            if not ret:
-                print("[DRIVER] Failed to grab frame")
-                continue
-
             capture_image(frame)
             time.sleep(CAPTURE_INTERVAL)
 
