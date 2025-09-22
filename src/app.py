@@ -131,7 +131,7 @@ class CameraApp(tk.Tk):
         # self.histogram.update(frame)
         # self.histogram_canvas.draw_idle()
 
-        self.after(10, self.update_camera_feed)
+        self.after(1000 // CAMERA_FPS, self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -154,11 +154,13 @@ class CameraApp(tk.Tk):
             self.recording = True
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"saves/video_{timestamp}.mp4"
+            filename = Path(
+                __file__).parent.parent / "saves" / f"video_{timestamp}.avi"
+            filename.parent.mkdir(parents=True, exist_ok=True)
+
             fourcc = cv2.VideoWriter.fourcc(*'XVID')
             self.video_writer = cv2.VideoWriter(
-                filename, fourcc,
-                int(1 / self.camera.camera.framerate.to("hertz").magnitude),
+                str(filename), fourcc, CAMERA_FPS,
                 (CAMERA_WIDTH, CAMERA_HEIGHT))
             tkinter.messagebox.showinfo("Recording",
                                         f"Video recording started: "
@@ -475,7 +477,8 @@ class CameraApp(tk.Tk):
         self.fps_button.pack(side="left", padx=10)
 
         # Triggers
-        self.triggers_button = tk.Menubutton(self.button_frame, text="Triggers...")
+        self.triggers_button = tk.Menubutton(self.button_frame,
+                                             text="Triggers...")
         self.triggers_menu = tk.Menu(self.triggers_button, tearoff=0)
         self.triggers_button.config(menu=self.triggers_menu)
 
