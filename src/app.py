@@ -269,6 +269,7 @@ class CameraApp(tk.Tk):
             if True:
                 exposure_value = Q_(float(value), 'millisecond')
                 self.camera.camera.exposure = exposure_value
+                self.camera.camera.auto_gain = True
                 dialog.destroy()
                 (tkinter.messagebox
                  .showinfo("Exposure",
@@ -329,7 +330,8 @@ class CameraApp(tk.Tk):
             self.camera.camera.stop_live_video()
             self.camera.camera.start_live_video(
                 framerate=f"{float(exposure_value)}Hz",
-                exposure_time="0.1ms")
+                exposure_time=self.camera.camera.exposure)
+            self.camera.camera.auto_gain = True
             dialog.destroy()
             (tkinter.messagebox
              .showinfo("Framerate",

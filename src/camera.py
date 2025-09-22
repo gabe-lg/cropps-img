@@ -10,7 +10,8 @@ CAMERA_FPS = 2
 class Camera:
     def __init__(self):
         self.camera = instrument('uc480')
-        self.camera.start_live_video(framerate = "2Hz", exposure_time="50ms")
+        self.camera.auto_gain = True
+        self.camera.start_live_video(framerate = "2Hz", exposure_time="500ms")
         self.camera.pixelclock = "5MHz"
         self.recording = False
 
@@ -26,16 +27,16 @@ class Camera:
         # frame = self.camera.grab_image(timeout='10s', copy=True, exposure_time='10ms')
         frame = self.camera.latest_frame(copy=True)
         # Convert to grayscale if needed (CLAHE works on 1-channel images)
-        if len(frame.shape) == 3 and frame.shape[2] == 3:
-            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            frame_gray = frame
+        # if len(frame.shape) == 3 and frame.shape[2] == 3:
+        #     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # else:
+        #     frame_gray = frame
 
-        # Adaptive gain using CLAHE
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        frame_eq = clahe.apply(frame_gray)
+        # # Adaptive gain using CLAHE
+        # clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        # frame_eq = clahe.apply(frame_gray)
 
-        return frame_eq
+        return frame
     
     def is_recording(self):
         return self.recording
