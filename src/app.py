@@ -33,7 +33,6 @@ BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
-CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS = 1280, 960, 2
 DEVICE_INDEX = 0
 QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
 COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
@@ -113,10 +112,8 @@ class CameraApp(tk.Tk):
             # self.capture_task.set_frame(frame)
             # self.analyzer.paint_square(frame)
 
-            if self.recording and self.video_writer:
-                frame_3ch = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-                frame_3ch = cv2.resize(frame_3ch, (CAMERA_WIDTH, CAMERA_HEIGHT))
-                self.video_writer.write(frame_3ch)
+            if self.camera.is_recording():
+                self.camera.write_video_frame()
 
             pil_image = self._overlay_watermark(frame)
             pil_image = self._overlay_text(pil_image)
@@ -131,7 +128,7 @@ class CameraApp(tk.Tk):
         # self.histogram.update(frame)
         # self.histogram_canvas.draw_idle()
 
-        self.after(1000 // CAMERA_FPS, self.update_camera_feed)
+        self.after(1000 // self.camera.get_fps(), self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -147,30 +144,16 @@ class CameraApp(tk.Tk):
 
     def start_recording(self):
         """Start recording video."""
-        if self.recording:
-            tkinter.messagebox.showinfo("Recording",
-                                        "Video is already recording.")
-        else:
-            self.recording = True
-
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = Path(
-                __file__).parent.parent / "saves" / f"video_{timestamp}.avi"
-            filename.parent.mkdir(parents=True, exist_ok=True)
-
-            fourcc = cv2.VideoWriter.fourcc(*'XVID')
-            self.video_writer = cv2.VideoWriter(
-                str(filename), fourcc, CAMERA_FPS,
-                (CAMERA_WIDTH, CAMERA_HEIGHT))
-            tkinter.messagebox.showinfo("Recording",
-                                        f"Video recording started: "
-                                        f"{filename}\nPress SPACE to stop.")
+        file_name = self.camera.start_recording()
+        self.start_record_button.config(state="disabled")
+        tkinter.messagebox.showinfo("Recording",
+                                    f"Video recording started. File: {file_name}")
 
     def stop_recording(self):
         """Stop recording video."""
-        if self.recording:
-            self.recording = False
-            self.video_writer.release()
+        if self.camera.is_recording():
+            self.camera.stop_recording()
+            self.start_record_button.config(state="normal")
             tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
         else:
             tkinter.messagebox.showinfo("Recording",
