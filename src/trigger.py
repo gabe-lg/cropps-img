@@ -10,5 +10,10 @@ def injection():
     Oct2Py().eval('injection')
 
 
+def burn():
+    # TODO
+    print("Running burn")
+
+
 if __name__ == '__main__':
     injection()

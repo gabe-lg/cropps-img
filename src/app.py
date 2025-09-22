@@ -474,6 +474,18 @@ class CameraApp(tk.Tk):
                                     command=self.show_fps_dialog)
         self.fps_button.pack(side="left", padx=10)
 
+        # Triggers
+        self.triggers_button = tk.Menubutton(self.button_frame, text="Triggers...")
+        self.triggers_menu = tk.Menu(self.triggers_button, tearoff=0)
+        self.triggers_button.config(menu=self.triggers_menu)
+
+        self.triggers_menu.add_command(
+            label="Current Injection", command=src.trigger.injection)
+        self.triggers_menu.add_command(
+            label="Burn", command=src.trigger.burn)
+
+        self.triggers_button.pack(side='left', padx=5)
+
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
                                      command=self.quit)
@@ -511,14 +523,28 @@ class CameraApp(tk.Tk):
 
     @threaded
     def _msg_observer(self):
+        """
+        Detects new messages received from the phone, and executes the
+        corresponding function.
+        """
         while True:
             self.sms_sender.new_msg_event.wait()
-            print("Message received", self.sms_sender.new_msgs.get())
+            new_msg = self.sms_sender.new_msgs.get()
+            print("Message received:", new_msg)
+
             try:
-                src.trigger.injection()
+                # I just found out python has pattern matching!!!!!
+                match new_msg:
+                    case "current injection":
+                        src.trigger.injection()
+                    case "burn":
+                        src.trigger.burn()
+                    case _:
+                        raise ValueError("Not supported")
             except Exception as e:
                 print("An error occurred while running external script:", e)
-            self.sms_sender.new_msg_event.clear()
+            finally:
+                self.sms_sender.new_msg_event.clear()
 
     def _setup_canvases(self):
         """Setup main canvas and graph canvases"""

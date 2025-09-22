@@ -122,7 +122,7 @@ class SmsSender:
 
             for line in diff:
                 if line.startswith('+') and not line.startswith('+++'):
-                    self.new_msgs.put(line[1:].strip())
+                    self.new_msgs.put(line[1:].lower().strip())
                     self.new_msg_event.set()
 
             self.sms_msgs = output
