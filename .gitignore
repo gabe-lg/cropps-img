@@ -12,6 +12,7 @@
 *.avi
 *.zip
 *.tar
+*.csv
 
 # Shared image data (but keep folder)
 shared-images/*
