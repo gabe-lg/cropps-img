@@ -1,5 +1,6 @@
 import difflib
 import os
+import queue
 import subprocess
 import threading
 from datetime import datetime, time, timedelta
@@ -13,7 +14,9 @@ class SmsSender:
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
-        self.sms_msgs = ""
+        self.sms_msgs = ""  # full output
+        self.new_msg_event = threading.Event()
+        self.new_msgs = queue.Queue()  # individual msgs
 
         oldpwd = os.getcwd()
         try:
@@ -105,6 +108,7 @@ class SmsSender:
                 '--projection', 'body'
             ]
 
+            os.chdir(self.dir)
             output = subprocess.run(cmd, check=True, capture_output=True,
                                     text=True).stdout
 
@@ -116,19 +120,16 @@ class SmsSender:
             diff = difflib.unified_diff(orig, new, fromfile='original',
                                         tofile='new', lineterm='')
 
-            acc = []
             for line in diff:
                 if line.startswith('+') and not line.startswith('+++'):
-                    acc.append(line[1:].strip())
+                    self.new_msgs.put(line[1:].strip())
+                    self.new_msg_event.set()
 
             self.sms_msgs = output
-            if acc: print("New text:", acc)
 
 
 if __name__ == '__main__':
-    os.chdir(
-        "/mnt/c/Users/gabby/Downloads/platform-tools-latest-windows/platform-tools")
-
+    os.chdir(input("Path:"))
     sms_sender = SmsSender()
     sms_sender.set_info("Test", "0")
     sms_sender.send_sms()

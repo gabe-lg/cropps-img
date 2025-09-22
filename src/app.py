@@ -18,6 +18,7 @@ if __name__ == "__main__" or __package__ is None:
 import src.analyzer
 import src.cutter_control
 import src.loggernet
+import src.trigger
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw, ImageFont, ImageTk
@@ -41,7 +42,8 @@ COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
 def threaded(target):
     """Wrapper to run a function in a separate thread with @threaded decorator"""
     return lambda *args, **kwargs: threading.Thread(target=target, args=args,
-                                                    kwargs=kwargs).start()
+                                                    kwargs=kwargs,
+                                                    daemon=True).start()
 
 
 class CameraApp(tk.Tk):
@@ -489,6 +491,8 @@ class CameraApp(tk.Tk):
     @threaded
     def _init_sms_receiver(self):
         threading.Thread(target=self.sms_sender.read_msg, args=(2,)).start()
+        print("Message observer started")
+        self._msg_observer()
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -504,6 +508,17 @@ class CameraApp(tk.Tk):
                 self.watermark = Image.new("RGBA", (200, 100))
 
         get_path(watermark_path)
+
+    @threaded
+    def _msg_observer(self):
+        while True:
+            self.sms_sender.new_msg_event.wait()
+            print("Message received", self.sms_sender.new_msgs.get())
+            try:
+                src.trigger.injection()
+            except Exception as e:
+                print("An error occurred while running external script:", e)
+            self.sms_sender.new_msg_event.clear()
 
     def _setup_canvases(self):
         """Setup main canvas and graph canvases"""

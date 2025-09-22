@@ -2,6 +2,7 @@ instrumental-lib
 matplotlib
 nicelib
 numpy
+oct2py
 opencv-python-headless
 opencv-python
 pillow
