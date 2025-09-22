@@ -8,6 +8,7 @@ if __name__ == "__main__" or __package__ is None:
     if _project_root not in sys.path:
         sys.path.insert(0, _project_root)
 
+import assets.burn
 import assets.injection
 
 
@@ -22,9 +23,8 @@ def injection():
 
 
 def burn():
-    # TODO
-    print("Running burn")
+    assets.burn.main()
 
 
 if __name__ == '__main__':
-    injection()
+    burn()
