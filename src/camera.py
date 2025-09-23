@@ -10,7 +10,7 @@ CAMERA_HEIGHT = 960
 
 class Camera:
     def __init__(self):
-        self.app_fps = 40
+        self.app_fps = 10
         self.camera = instrument('uc480')
         self.camera.auto_gain = True
         self.camera.start_live_video(framerate="2Hz", exposure_time="500ms")
