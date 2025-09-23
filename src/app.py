@@ -1,5 +1,6 @@
 import sys
 import threading
+import time
 import tkinter as tk
 import tkinter.messagebox
 import tkinter.simpledialog
@@ -48,12 +49,12 @@ class CameraApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("CROPPS Camera Control")
-        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        # self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.attributes("-fullscreen", True)
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         # TODO: add button that toggles whether data is displayed in camera feed
         self.show_logger = True
-        self.show_data = True
 
         # self.resizable(False, False)
         # self.attributes('-fullscreen', True)
@@ -86,6 +87,8 @@ class CameraApp(tk.Tk):
         self.angle = 60
         self._animate_loading()
 
+        self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
+
         # Initialize camera in separate thread
         self.camera = Camera()
         # Initialize camera/UI setup on the main thread
@@ -101,33 +104,63 @@ class CameraApp(tk.Tk):
     ## main update function ##
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
-        if not (hasattr(self, 'camera') and self.camera):
-            return
+        # === Main camera (self.camera) ===
+        if hasattr(self, 'camera') and self.camera:
+            frame = self.camera.get_frame()
+            if frame is not None:
+                # if hasattr(self, 'capture_task') and self.capture_task is not None:
+                # self.capture_task.set_frame(frame)
+                # self.analyzer.paint_square(frame)
+                if self.camera.is_recording():
+                    self.camera.write_video_frame()
 
-        frame = self.camera.get_frame()
-        if frame is not None:
-            # Only set frame if capture_task is initialized
-            # if hasattr(self, 'capture_task') and self.capture_task is not None:
-            # self.capture_task.set_frame(frame)
-            # self.analyzer.paint_square(frame)
+                pil_image = self._overlay_watermark(frame)
+                pil_image = self._overlay_text(pil_image)
 
-            if self.camera.is_recording():
-                self.camera.write_video_frame()
+                # Resize to fit canvas
+                canvas_width = self.canvas.winfo_width()
+                canvas_height = self.canvas.winfo_height()
+                pil_image = pil_image.copy()
+                pil_image.thumbnail((canvas_width, canvas_height),
+                                    Image.Resampling.LANCZOS)
+                self.imgtk = ImageTk.PhotoImage(image=pil_image)
+                self.canvas.delete('all')
 
-            pil_image = self._overlay_watermark(frame)
-            pil_image = self._overlay_text(pil_image)
+                x = (canvas_width - pil_image.width) // 2
+                y = (canvas_height - pil_image.height) // 2
+                self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
-            self.imgtk = ImageTk.PhotoImage(image=pil_image)
-            self.canvas.delete('all')
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
+                # Update histogram if frame exists
+                # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
+                #     0)
+                # self.loggernet_canvas.draw_idle()
+                self.histogram.update(frame)
+                self.histogram_canvas.draw_idle()
 
-        # update loggernet graph
-        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        self.loggernet_canvas.draw_idle()
-        self.histogram.update(frame)
-        self.histogram_canvas.draw_idle()
+        # === OpenCV webcam feed (self.cap) ===
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(frame)
 
-        self.after(1000 // self.camera.get_fps(), self.update_camera_feed)
+                # Resize to fit a portion of the window
+                canvas_width = self.webcam_canvas.winfo_width()
+                canvas_height = self.webcam_canvas.winfo_height()
+                img = img.copy()
+                img.thumbnail((canvas_width, canvas_height),
+                              Image.Resampling.LANCZOS)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.webcam_canvas.delete("all")
+
+                x = (canvas_width - img.width) // 2
+                y = (canvas_height - img.height) // 2
+
+                self.webcam_canvas.imgtk = imgtk
+                self.webcam_canvas.create_image(x, y, anchor=tk.NW, image=imgtk)
+
+        # Repeat this method after a short delay
+        self.after(1000 // self.camera.app_fps, self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -258,28 +291,18 @@ class CameraApp(tk.Tk):
         sms_dialog.mainloop()
 
     def show_exposure_dialog(self):
-        mn, mx = 0.06675, 99.92475
-
         def apply():
-            value = {"min": mn, "max": mx}.get(
-                exposure_entry.get().lower().strip(), exposure_entry.get())
-
-            # if self._validate_exposure(value, mn, mx):
-            if True:
-                exposure_value = Q_(float(value), 'millisecond')
-                self.camera.camera.exposure = exposure_value
-                self.camera.camera.auto_gain = True
-                dialog.destroy()
-                (tkinter.messagebox
-                 .showinfo("Exposure",
-                           f"Exposure set to {self.camera.camera.exposure}s"))
-            else:
-                error_label.config(
-                    text=f"Please enter a valid value between {mn} and {mx}.")
+            exposure_value = Q_(float(exposure_entry.get()), 'millisecond')
+            self.camera.camera.exposure = exposure_value
+            self.camera.camera.auto_gain = True
+            dialog.destroy()
+            (tkinter.messagebox
+             .showinfo("Exposure",
+                       f"Exposure set to {self.camera.camera.exposure}s"))
 
         dialog = tk.Toplevel(self)
         dialog.title("Exposure Settings")
-        dialog.geometry("400x200")
+        dialog.geometry("400x150")
         dialog.resizable(False, False)
 
         content_frame = tk.Frame(dialog)
@@ -297,11 +320,7 @@ class CameraApp(tk.Tk):
         exposure_entry = tk.Entry(input_frame, width=25)
         exposure_entry.pack(side="left", padx=10)
         tk.Label(input_frame, text="milliseconds").pack(
-            side="left", padx=5)
-
-        error_label = tk.Label(content_frame, text="",
-                               fg="red")
-        error_label.pack(pady=5)
+            side="left", padx=2)
 
         button_frame = tk.Frame(content_frame)
         button_frame.pack()
@@ -322,8 +341,6 @@ class CameraApp(tk.Tk):
         dialog.geometry(f"+{x}+{y}")
 
     def show_fps_dialog(self):
-        mn, mx = 0.06675, 99.92475
-
         def apply():
             exposure_value = exposure_entry.get()
             self.camera.camera.stop_live_video()
@@ -334,36 +351,32 @@ class CameraApp(tk.Tk):
             dialog.destroy()
             (tkinter.messagebox
              .showinfo("Framerate",
-                       f"Framerate set to {self.camera.camera.framerate}Hz"))
+                       f"Framerate set to {self.camera.camera.framerate:,}"))
 
             # error_label.config(
             #     text=f"Please enter a valid value between {mn} and {mx}.")
 
         dialog = tk.Toplevel(self)
         dialog.title("Framerate Settings")
-        dialog.geometry("400x200")
+        dialog.geometry("400x150")
         dialog.resizable(False, False)
 
         content_frame = tk.Frame(dialog)
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         current_label = tk.Label(content_frame,
-                                 text=f"Current Framerate: {self.camera.camera.framerate:,}s")
+                                 text=f"Current Framerate: {self.camera.camera.framerate:,}")
         current_label.pack(pady=(0, 10))
 
         input_frame = tk.Frame(content_frame)
         input_frame.pack(fill="x", pady=5)
 
-        tk.Label(input_frame, text="New exposure:").pack(
+        tk.Label(input_frame, text="New framerate:").pack(
             side="left")
         exposure_entry = tk.Entry(input_frame, width=25)
         exposure_entry.pack(side="left", padx=10)
-        tk.Label(input_frame, text="milliseconds").pack(
-            side="left", padx=5)
-
-        error_label = tk.Label(content_frame, text='Or type "min" or "max"',
-                               fg="red")
-        error_label.pack(pady=5)
+        tk.Label(input_frame, text="Hertz").pack(
+            side="left", padx=2)
 
         button_frame = tk.Frame(content_frame)
         button_frame.pack()
@@ -382,6 +395,13 @@ class CameraApp(tk.Tk):
         y = self.winfo_y() + (self.winfo_height() // 2) - (
                 dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
+
+    def save_graph(self):
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        file_name = Path(
+            __file__).parent.parent / "saves" / f"graph_{timestamp}.png"
+        file_name.parent.mkdir(parents=True, exist_ok=True)
+        self.histogram.fig.savefig(file_name)
 
     ## setup helpers ##
     def _animate_loading(self):
@@ -473,6 +493,12 @@ class CameraApp(tk.Tk):
 
         self.triggers_button.pack(side='left', padx=5)
 
+        # Save graph
+        self.save_graph_button = tk.Button(self.button_frame,
+                                           text="Save graph",
+                                           command=self.save_graph)
+        self.save_graph_button.pack(side="left", padx=10)
+
         # Close Button
         self.quit_button = tk.Button(self.button_frame, text="Exit",
                                      command=self.quit)
@@ -536,18 +562,34 @@ class CameraApp(tk.Tk):
     def _setup_canvases(self):
         """Setup main canvas and graph canvases"""
         # Camera feed canvas
-        width = WINDOW_WIDTH / 2 if self.show_logger else WINDOW_WIDTH
+        width = self.winfo_width() // 2 if self.show_logger else self.winfo_width()
         self.canvas = tk.Canvas(self, width=width,
                                 height=WINDOW_HEIGHT)
         self.canvas.pack(side="left")
 
         if self.show_logger:
             # Loggernet graph canvas
-            frame = tk.Frame(self)
-            frame.pack(anchor="nw", padx=10, pady=10)
-            self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
-                                                      master=frame)
-            self.loggernet_canvas.get_tk_widget().pack(anchor="nw")
+            # frame = tk.Frame(self, height=self.winfo_height() // 3)
+            # frame.pack(anchor="nw", padx=10, pady=10, fill="x")
+            # frame.pack_propagate(False)
+            #
+            # self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+            #                                           master=frame)
+            # self.loggernet_canvas.get_tk_widget().pack(anchor="nw", fill="both",
+            #                                            expand=True)
+
+            width = self.winfo_screenwidth() // 2
+            height = self.winfo_screenheight() / 2.5 if self.show_graph \
+                else self.winfo_screenheight()
+
+            frame = tk.Frame(self, width=width, height=height)
+            frame.pack(anchor="nw", padx=10, pady=10, fill='x')
+            frame.pack_propagate(False)  # prevent shrinking to fit children
+
+            # Create canvas and make it fill the entire frame
+            self.webcam_canvas = tk.Canvas(frame, width=width,
+                                           height=height)
+            self.webcam_canvas.pack(fill='y')
 
             # Histogram canvas
             frame = tk.Frame(self)
@@ -585,6 +627,7 @@ class CameraApp(tk.Tk):
         self.video_writer = None
         self.analyzing = False
         self.capture_task = CaptureTask(self.camera)
+        self.cap = cv2.VideoCapture(0)
         self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
@@ -642,17 +685,6 @@ class CameraApp(tk.Tk):
             self.watermark,
         )
         return pil_image
-
-    def _validate_exposure(self, value, mn, mx):
-        """Validate that the exposure value is between 100 and 60000."""
-        try:
-            value = float(value)
-            if mn <= value <= mx:
-                return True
-            else:
-                return False
-        except ValueError:
-            return False
 
 
 def main():

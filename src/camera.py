@@ -6,11 +6,11 @@ from instrumental import instrument, list_instruments
 
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 960
-CAMERA_FPS = 2
 
 
 class Camera:
     def __init__(self):
+        self.app_fps = 40
         self.camera = instrument('uc480')
         self.camera.auto_gain = True
         self.camera.start_live_video(framerate="2Hz", exposure_time="500ms")
@@ -44,7 +44,7 @@ class Camera:
         return self.recording
 
     def get_fps(self):
-        return CAMERA_FPS
+        return self.app_fps
 
     def start_recording(self):
         if self.is_recording():
@@ -59,7 +59,7 @@ class Camera:
 
         fourcc = cv2.VideoWriter.fourcc(*'XVID')
         self.video_writer = cv2.VideoWriter(
-            str(file_name), fourcc, CAMERA_FPS,
+            str(file_name), fourcc, self.app_fps,
             (CAMERA_WIDTH, CAMERA_HEIGHT))
         return file_name
 
