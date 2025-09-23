@@ -487,9 +487,10 @@ class CameraApp(tk.Tk):
         self.triggers_button.config(menu=self.triggers_menu)
 
         self.triggers_menu.add_command(
-            label="Current Injection", command=src.trigger.injection)
+            label="Current Injection",
+            command=lambda: src.trigger.injection(self.current_injection_port))
         self.triggers_menu.add_command(
-            label="Burn", command=src.trigger.burn)
+            label="Burn", command=lambda: src.trigger.burn(self.burn_port))
 
         self.triggers_button.pack(side='left', padx=5)
 
@@ -540,6 +541,7 @@ class CameraApp(tk.Tk):
         Detects new messages received from the phone, and executes the
         corresponding function.
         """
+        self._show_serial_port_dialog()
         while True:
             self.sms_sender.new_msg_event.wait()
             new_msg = self.sms_sender.new_msgs.get()
@@ -549,9 +551,9 @@ class CameraApp(tk.Tk):
                 # I just found out python has pattern matching!!!!!
                 match new_msg:
                     case "current injection":
-                        src.trigger.injection()
+                        src.trigger.injection(self.current_injection_port)
                     case "burn":
-                        src.trigger.burn()
+                        src.trigger.burn(self.burn_port)
                     case _:
                         raise ValueError("Not supported")
             except Exception as e:
@@ -645,6 +647,68 @@ class CameraApp(tk.Tk):
         # Start camera feed
         self._init_sms_receiver()
         self.update_camera_feed()
+
+    def _show_serial_port_dialog(self):
+        def apply():
+            try:
+                self.current_injection_port = "COM" + str(
+                    int(current_entry.get().strip()))
+                self.burn_port = "COM" + str(int(burn_entry.get().strip()))
+
+                dialog.destroy()
+                print(f"Current Injection Port: {self.current_injection_port}\n"
+                      f"Burn Port: {self.burn_port}"
+                      )
+            except ValueError:
+                error_label.config(text="Invalid Serial Port")
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Set Serial Ports")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+
+        content_frame = tk.Frame(dialog)
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        # ---- Current Injection Port Input ----
+        current_frame = tk.Frame(content_frame)
+        current_entry = tk.Entry(current_frame, width=25)
+        current_entry.pack(side="right", padx=2)
+        current_frame.pack(fill="x", pady=5)
+        tk.Label(current_frame, text="Current Injection Port: COM").pack(
+            side="right")
+
+        # ---- Burn Port Input ----
+        burn_frame = tk.Frame(content_frame)
+        burn_entry = tk.Entry(burn_frame, width=25)
+        burn_entry.pack(side="right", padx=2)
+        burn_frame.pack(fill="x", pady=5)
+        tk.Label(burn_frame, text="Burn Port: COM").pack(side="right")
+
+        # ---- Error Label ----
+        error_label = tk.Label(content_frame, text="", fg="red")
+        error_label.pack()
+
+        # ---- Buttons ----
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(pady=10)
+        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
+            side="left", padx=5)
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(
+            side="left", padx=5)
+
+        # ---- Bind Enter Key ----
+        current_entry.bind("<Return>", lambda e: apply())
+        burn_entry.bind("<Return>", lambda e: apply())
+
+        # ---- Center the dialog ----
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
 
     # !! TODO: REMOVE EXPOSURE/OTHER DINOLITE specific metadata
     ## other helpers ##

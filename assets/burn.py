@@ -2,17 +2,15 @@ import time
 
 import serial
 
-# Configure serial port (replace 'COM3' with your Arduino's port)
-SERIAL_PORT = 'COM4'  # Example: 'COM3' on Windows, '/dev/ttyUSB0' on Linux/Mac
 BAUD_RATE = 9600
 
 
-def main():
+def main(port):
     try:
         # Initialize serial connection
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        ser = serial.Serial(port, BAUD_RATE, timeout=1)
         time.sleep(2)  # Wait for Arduino to initialize
-        print("Connected to Arduino on", SERIAL_PORT)
+        print("Connected to Arduino on", port)
 
         # Read initial Arduino messages
         while ser.in_waiting:

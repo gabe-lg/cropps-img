@@ -6,7 +6,6 @@ import time
 import serial
 
 # Configuration (adjust as needed)
-COM_PORT = 'COM3'  # Change to your COM port
 BAUD_RATE = 9600
 CURRENT = 20e-6  # Constant current in Amps (e.g., 20 µA)
 MEASUREMENT_TIME = 20  # Total time in seconds
@@ -17,11 +16,11 @@ VOLT_COMPLIANCE = 200  # Voltage compliance in V
 data = []
 
 
-def main():
+def main(port):
     # Initialize serial connection
     try:
         keithley = serial.Serial(
-            port=COM_PORT,
+            port=port,
             baudrate=BAUD_RATE,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,

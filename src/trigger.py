@@ -10,12 +10,12 @@ import assets.burn
 import assets.injection
 
 
-def injection():
-    assets.injection.main()
+def injection(port):
+    assets.injection.main(port)
 
 
-def burn():
-    assets.burn.main()
+def burn(port):
+    assets.burn.main(port)
 
 
 if __name__ == '__main__':
