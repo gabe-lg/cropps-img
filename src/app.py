@@ -1,6 +1,5 @@
 import sys
 import threading
-import time
 import tkinter as tk
 import tkinter.messagebox
 import tkinter.simpledialog

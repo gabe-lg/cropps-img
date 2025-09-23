@@ -1,17 +1,19 @@
-from pathlib import Path
 import time
-from instrumental import instrument, list_instruments
+from pathlib import Path
+
 import cv2
+from instrumental import instrument, list_instruments
 
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 960
 CAMERA_FPS = 2
 
+
 class Camera:
     def __init__(self):
         self.camera = instrument('uc480')
         self.camera.auto_gain = True
-        self.camera.start_live_video(framerate = "2Hz", exposure_time="500ms")
+        self.camera.start_live_video(framerate="2Hz", exposure_time="500ms")
         self.camera.pixelclock = "5MHz"
         self.recording = False
 
@@ -22,7 +24,7 @@ class Camera:
             self.camera.close()
         except Exception:
             pass  # Ignore errors during interpreter shutdown
-    
+
     def get_frame(self):
         # frame = self.camera.grab_image(timeout='10s', copy=True, exposure_time='10ms')
         frame = self.camera.latest_frame(copy=True)
@@ -37,7 +39,7 @@ class Camera:
         # frame_eq = clahe.apply(frame_gray)
 
         return frame
-    
+
     def is_recording(self):
         return self.recording
 
@@ -48,7 +50,7 @@ class Camera:
         if self.is_recording():
             print("[WARNING] Camera already recording!")
             return
-        
+
         self.recording = True
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         file_name = Path(
@@ -67,7 +69,6 @@ class Camera:
             frame_3ch = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
             frame_3ch = cv2.resize(frame_3ch, (CAMERA_WIDTH, CAMERA_HEIGHT))
             self.video_writer.write(frame_3ch)
-
 
     def stop_recording(self):
         self.recording = False

@@ -1,6 +1,8 @@
 import os
-import psycopg2
 from datetime import datetime
+
+import psycopg2
+
 
 def insert_data(yellow_pixels, agitation, normalized_pixels, image_path):
     try:
@@ -14,9 +16,10 @@ def insert_data(yellow_pixels, agitation, normalized_pixels, image_path):
         cur = conn.cursor()
 
         cur.execute("""
-            INSERT INTO plant_logs (timestamp, yellow_pixels, agitation, normalized_pixels, image_path)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (datetime.now(), yellow_pixels, agitation, normalized_pixels, image_path))
+                    INSERT INTO plant_logs (timestamp, yellow_pixels, agitation, normalized_pixels, image_path)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """, (datetime.now(), yellow_pixels, agitation,
+                          normalized_pixels, image_path))
 
         conn.commit()
         cur.close()

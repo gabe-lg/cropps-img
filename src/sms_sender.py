@@ -130,7 +130,7 @@ class SmsSender:
 
 if __name__ == '__main__':
     os.chdir(("C:\\Users\\CROPPS-in-Box\\Documents\\cropps main "
-                    "folder\\platform-tools-latest-windows\\platform-tools"))
+              "folder\\platform-tools-latest-windows\\platform-tools"))
     sms_sender = SmsSender()
     sms_sender.set_info("Test", "0")
     sms_sender.send_sms()

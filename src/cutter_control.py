@@ -1,6 +1,6 @@
 import socket
-import tkinter as tk
 import time
+import tkinter as tk
 
 
 def cutter_app():

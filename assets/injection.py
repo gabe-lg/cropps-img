@@ -1,8 +1,9 @@
-import serial
-import time
 import csv
 import datetime
 import sys
+import time
+
+import serial
 
 # Configuration (adjust as needed)
 COM_PORT = 'COM3'  # Change to your COM port
@@ -14,6 +15,7 @@ VOLT_COMPLIANCE = 200  # Voltage compliance in V
 
 # Data storage
 data = []
+
 
 def main():
     # Initialize serial connection
@@ -44,7 +46,8 @@ def main():
         # Configure for constant current mode
         commands = [
             b':SOUR:FUNC CURR',  # Set to current source
-            f':SENS:VOLT:PROT {VOLT_COMPLIANCE}\n'.encode('utf-8'),  # Voltage compliance
+            f':SENS:VOLT:PROT {VOLT_COMPLIANCE}\n'.encode('utf-8'),
+            # Voltage compliance
             b':SENS:VOLT:RANG:AUTO ON',  # Auto range voltage
             b':SENS:CURR:RANG:AUTO ON',  # Auto range current
             b':SENS:FUNC:CONC ON',  # Concurrent measurements
@@ -65,7 +68,8 @@ def main():
 
         # Output ON
         keithley.write(b':OUTP ON\n')
-        print(f'Output enabled. Constant current: {CURRENT * 1000:.3f} mA for {MEASUREMENT_TIME} seconds.')
+        print(
+            f'Output enabled. Constant current: {CURRENT * 1000:.3f} mA for {MEASUREMENT_TIME} seconds.')
 
         # Main measurement loop
         start_time = time.time()
@@ -89,7 +93,8 @@ def main():
                         data.append([timestamp, voltage, current])
                         sample_count += 1
                         if sample_count % 100 == 0:  # Progress every 100 samples
-                            print(f'Progress: {sample_count}/{num_samples} samples | V: {voltage:.3f}V | I: {current*1000:.3f}mA')
+                            print(
+                                f'Progress: {sample_count}/{num_samples} samples | V: {voltage:.3f}V | I: {current * 1000:.3f}mA')
 
                 # Wait for next sample
                 time.sleep(SAMPLE_INTERVAL)
@@ -121,8 +126,10 @@ def main():
             writer.writerows(data)
         print(f'Data saved to: {filename}')
         print(f'Total samples: {len(data)}')
-        print(f'Average voltage: {sum(row[1] for row in data)/len(data):.3f} V')
-        print(f'Average current: {sum(row[2] for row in data)/len(data)*1000:.3f} mA')
+        print(
+            f'Average voltage: {sum(row[1] for row in data) / len(data):.3f} V')
+        print(
+            f'Average current: {sum(row[2] for row in data) / len(data) * 1000:.3f} mA')
     else:
         print('No data collected.')
 

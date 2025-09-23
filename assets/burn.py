@@ -1,9 +1,11 @@
-import serial
 import time
+
+import serial
 
 # Configure serial port (replace 'COM3' with your Arduino's port)
 SERIAL_PORT = 'COM4'  # Example: 'COM3' on Windows, '/dev/ttyUSB0' on Linux/Mac
 BAUD_RATE = 9600
+
 
 def main():
     try:
@@ -19,7 +21,7 @@ def main():
         # Send L1 command to Arduino
         ser.write('L1\n'.encode('utf-8'))
         print("Sent L1 command")
-        
+
         # Read and display Arduino response
         time.sleep(0.1)  # Brief delay to allow Arduino to respond
         while ser.in_waiting:
@@ -33,6 +35,7 @@ def main():
         if 'ser' in locals() and ser.is_open:
             ser.close()
             print("Serial connection closed.")
+
 
 if __name__ == "__main__":
     main()

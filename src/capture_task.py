@@ -57,7 +57,8 @@ def _delete_file():
     """Deletes all files in `SCREENSHOT_DIRECTORY` if file count is greater than FILE_LIMIT"""
     if os.path.exists(SCREENSHOT_DIRECTORY):
         items = os.listdir(SCREENSHOT_DIRECTORY)
-        file_count = sum(1 for item in items if os.path.isfile(os.path.join(SCREENSHOT_DIRECTORY, item)))
+        file_count = sum(1 for item in items if os.path.isfile(
+            os.path.join(SCREENSHOT_DIRECTORY, item)))
         if file_count >= FILE_LIMIT:
             for item in items:
                 item_path = os.path.join(SCREENSHOT_DIRECTORY, item)

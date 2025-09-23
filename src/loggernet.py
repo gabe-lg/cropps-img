@@ -1,10 +1,11 @@
 import csv
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import numpy as np
-import requests
 import threading
 import time
+
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import numpy as np
+import requests
 from requests.auth import HTTPBasicAuth
 
 
@@ -32,7 +33,8 @@ class Loggernet:
         self.stop_event = threading.Event()
         self.fig, self.ax = plt.subplots()
         self.graph = [self.ax.plot(self.timestamps, self.data_list, '-',
-                                   label=self.labels[i], color=self.colors[i])[0]
+                                   label=self.labels[i], color=self.colors[i])[
+                          0]
                       for i in range(3)]
 
         self.ax.set_title(self.TITLE)
@@ -50,7 +52,8 @@ class Loggernet:
 
     def fetch_latest(self):
         with open('./assets/data.csv', 'w', newline='') as file:
-            csv.writer(file).writerows([[self.X_LABEL] + self.labels + ["Plant wounded"]])
+            csv.writer(file).writerows(
+                [[self.X_LABEL] + self.labels + ["Plant wounded"]])
 
         while not self.stop_event.is_set():
             url = 'http://192.168.66.1/cr6'
@@ -81,13 +84,16 @@ class Loggernet:
             with self.data_lock:
                 self.data_list.append(d)
                 self.data_list[:] = self.data_list[-self.MAX_DATA:]
-                self.data_list[:] = [[np.nan if str(item).upper() == 'NAN' else item
-                                      for item in row] for row in self.data_list]
-                self.timestamps[:] = list(range(len(self.data_list) - 1, -1, -1))
+                self.data_list[:] = [
+                    [np.nan if str(item).upper() == 'NAN' else item
+                     for item in row] for row in self.data_list]
+                self.timestamps[:] = list(
+                    range(len(self.data_list) - 1, -1, -1))
                 self.lines[:] = [i + 1 for i in self.lines]
 
             with open('./assets/data.csv', 'a', newline='') as file:
-                csv.writer(file).writerows([[t] + d[:3] + [1 if self.lines and self.lines[-1] == 1 else 0]])
+                csv.writer(file).writerows([[t] + d[:3] + [
+                    1 if self.lines and self.lines[-1] == 1 else 0]])
             time.sleep(self.INTERVAL)
         print("Data fetching stopped.")
         self.stop_event.set()
@@ -100,7 +106,9 @@ class Loggernet:
 
         with self.data_lock:
             x = list(self.timestamps)
-            y_data = [list(col) for col in zip(*self.data_list)] if self.data_list else [[] for _ in self.labels]
+            y_data = [list(col) for col in
+                      zip(*self.data_list)] if self.data_list else [[] for _ in
+                                                                    self.labels]
             vlines = list(self.lines)
 
         for i, line in enumerate(self.graph):
@@ -131,7 +139,8 @@ class Loggernet:
 
     def run(self):
         ani = animation.FuncAnimation(self.fig, self.update,
-                                      interval=self.INTERVAL, cache_frame_data=False)
+                                      interval=self.INTERVAL,
+                                      cache_frame_data=False)
         plt.show()
         print("Program exiting.")
 

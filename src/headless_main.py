@@ -1,6 +1,7 @@
+import glob
 import os
 import time
-import glob
+
 from src import analyzer, sms_sender
 
 # Get image directory from env var or fallback
@@ -14,9 +15,10 @@ observer = analyzer.ObserverWrapper(analyzer_obj, sms, image_dir=IMAGE_DIR)
 # keep track of what's been processed already
 processed_files = set()
 
+
 def run_headless():
     print(f"[HEADLESS] Starting headless analysis in {IMAGE_DIR}")
-    
+
     # Start the watchdog observer for real-time folder changes
     observer.start_monitoring()
 

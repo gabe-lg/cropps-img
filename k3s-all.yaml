@@ -80,10 +80,10 @@ spec:
       containers:
         - name: cropps-img
           image: cropps-img:latest
-          imagePullPolicy: Never 
+          imagePullPolicy: Never
           env:
             - name: PYTHONUNBUFFERED
-              value: "1"                     
+              value: "1"
             - name: DB_NAME
               value: plantdata
             - name: DB_USER
@@ -100,5 +100,5 @@ spec:
       volumes:
         - name: shared-images
           hostPath:
-                path: /mnt/c/Users/17177/Desktop/cropps-img-half/cropps-img/shared-images
-                type: Directory
+            path: /mnt/c/Users/17177/Desktop/cropps-img-half/cropps-img/shared-images
+            type: Directory

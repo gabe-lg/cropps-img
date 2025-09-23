@@ -1,6 +1,7 @@
-import cv2
 import os
 import time
+
+import cv2
 import numpy as np
 
 RAW_DIR = "./shared-images"
@@ -8,12 +9,15 @@ PROCESSED_DIR = os.path.join(RAW_DIR, "processed")
 REFRESH_INTERVAL = 2  # seconds
 DISPLAY_HEIGHT = 350  # try 300–400 for comfort
 
+
 def get_latest_image(folder):
-    images = [f for f in os.listdir(folder) if f.lower().endswith((".jpg", ".png", ".jpeg"))]
+    images = [f for f in os.listdir(folder) if
+              f.lower().endswith((".jpg", ".png", ".jpeg"))]
     if not images:
         return None
     images.sort(key=lambda x: os.path.getctime(os.path.join(folder, x)))
     return images[-1]
+
 
 def resize_image(img, height=DISPLAY_HEIGHT):
     if img is None:
@@ -21,6 +25,7 @@ def resize_image(img, height=DISPLAY_HEIGHT):
     scale = height / img.shape[0]
     width = int(img.shape[1] * scale)
     return cv2.resize(img, (width, height))
+
 
 def main():
     print("[DEMO] Viewer started. Press ESC to quit.")
@@ -51,7 +56,8 @@ def main():
                 continue
 
             if img_proc is None:
-                print(f"[WARNING] Processed image NOT found after wait: {processed_path}")
+                print(
+                    f"[WARNING] Processed image NOT found after wait: {processed_path}")
                 img_proc = 255 * np.ones_like(img_raw)  # white placeholder
 
             img_raw_resized = resize_image(img_raw)
@@ -67,6 +73,7 @@ def main():
             break
 
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()

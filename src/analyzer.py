@@ -279,7 +279,6 @@
 #         self.hist_line.set_ydata(hist)
 
 import os
-import platform
 import time
 from typing import Any, Callable, Optional, Union
 
@@ -547,7 +546,7 @@ class ObserverWrapper:
     def __init__(self, analyzer: Analyzer,
                  sms_sender: src.sms_sender.SmsSender,
                  image_dir=r"C:\Users\CROPPS-in-Box\Documents\cropps main folder\cropps-img\assets\captured_data"
-):
+                 ):
         self.event_handler = ImageHandler(analyzer, sms_sender)
         self.observer = Observer()
         self.analyzer = analyzer
