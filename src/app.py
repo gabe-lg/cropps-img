@@ -516,7 +516,7 @@ class CameraApp(tk.Tk):
 
     @threaded
     def _init_sms_receiver(self):
-        threading.Thread(target=self.sms_sender.read_msg, args=(2,)).start()
+        threading.Thread(target=self.sms_sender.read_msg).start()
         print("Message observer started")
         self._msg_observer()
 

@@ -3,7 +3,7 @@ import os
 import queue
 import subprocess
 import threading
-from datetime import datetime, time, timedelta
+import time
 
 
 class SmsSender:
@@ -17,6 +17,7 @@ class SmsSender:
         self.sms_msgs = ""  # full output
         self.new_msg_event = threading.Event()
         self.new_msgs = queue.Queue()  # individual msgs
+        self.init_ms = int(time.time() * 1000)
 
         oldpwd = os.getcwd()
         try:
@@ -89,22 +90,17 @@ class SmsSender:
         finally:
             os.chdir(oldpwd)
 
-    def read_msg(self, days_ago: int = 0):
+    def read_msg(self):
         """
         Continuously monitors text messages sent to the connected phone and
         prints a list of new messages received at every iteration.
         :param days_ago: Read messages received up to `days_ago` days ago.
         """
         while True:
-            now_ms = int(
-                datetime.combine(
-                    datetime.now().date() - timedelta(days=days_ago),
-                    time(0, 0, 0)).timestamp() * 1000)
-
             cmd = [
                 './adb', 'shell', 'content', 'query',
                 '--uri', 'content://sms/inbox',
-                '--where', f'date\\>={now_ms}',
+                '--where', f'date\\>={self.init_ms}',
                 '--projection', 'body'
             ]
 
@@ -129,9 +125,5 @@ class SmsSender:
 
 
 if __name__ == '__main__':
-    os.chdir(("C:\\Users\\CROPPS-in-Box\\Documents\\cropps main "
-              "folder\\platform-tools-latest-windows\\platform-tools"))
     sms_sender = SmsSender()
-    sms_sender.set_info("Test", "0")
-    sms_sender.send_sms()
-    threading.Thread(target=sms_sender.read_msg, args=(2,)).start()
+    threading.Thread(target=sms_sender.read_msg).start()
