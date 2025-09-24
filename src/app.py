@@ -211,8 +211,8 @@ class CameraApp(tk.Tk):
             command=self.start_analysis
         )
         self.capture_task = CaptureTask(self.camera)
-        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-                                                         self.sms_sender)
+        # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
+        #                                                  self.sms_sender)
 
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
@@ -293,12 +293,11 @@ class CameraApp(tk.Tk):
     def show_exposure_dialog(self):
         def apply():
             exposure_value = Q_(float(exposure_entry.get()), 'millisecond')
-            self.camera.camera.exposure = exposure_value
-            self.camera.camera.auto_gain = True
+            self.camera.set_exposure(exposure_value)
             dialog.destroy()
             (tkinter.messagebox
              .showinfo("Exposure",
-                       f"Exposure set to {self.camera.camera.exposure}s"))
+                       f"Exposure set to {self.camera.get_exposure()}s"))
 
         dialog = tk.Toplevel(self)
         dialog.title("Exposure Settings")
@@ -309,7 +308,7 @@ class CameraApp(tk.Tk):
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         current_label = tk.Label(content_frame,
-                                 text=f"Current Exposure: {self.camera.camera.exposure:,}s")
+                                 text=f"Current Exposure: {self.camera.get_exposure():,}s")
         current_label.pack(pady=(0, 10))
 
         input_frame = tk.Frame(content_frame)
@@ -342,16 +341,12 @@ class CameraApp(tk.Tk):
 
     def show_fps_dialog(self):
         def apply():
-            exposure_value = exposure_entry.get()
-            self.camera.camera.stop_live_video()
-            self.camera.camera.start_live_video(
-                framerate=f"{float(exposure_value)}Hz",
-                exposure_time=self.camera.camera.exposure)
-            self.camera.camera.auto_gain = True
+            fps_value = fps_entry.get()
+            self.camera.set_fps(fps_value)
             dialog.destroy()
             (tkinter.messagebox
              .showinfo("Framerate",
-                       f"Framerate set to {self.camera.camera.framerate:,}"))
+                       f"Framerate set to {self.camera.get_fps():,}"))
 
             # error_label.config(
             #     text=f"Please enter a valid value between {mn} and {mx}.")
@@ -365,7 +360,7 @@ class CameraApp(tk.Tk):
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         current_label = tk.Label(content_frame,
-                                 text=f"Current Framerate: {self.camera.camera.framerate:,}")
+                                 text=f"Current Framerate: {self.camera.get_fps():,}")
         current_label.pack(pady=(0, 10))
 
         input_frame = tk.Frame(content_frame)
@@ -373,8 +368,8 @@ class CameraApp(tk.Tk):
 
         tk.Label(input_frame, text="New framerate:").pack(
             side="left")
-        exposure_entry = tk.Entry(input_frame, width=25)
-        exposure_entry.pack(side="left", padx=10)
+        fps_entry = tk.Entry(input_frame, width=25)
+        fps_entry.pack(side="left", padx=10)
         tk.Label(input_frame, text="Hertz").pack(
             side="left", padx=2)
 
@@ -386,7 +381,7 @@ class CameraApp(tk.Tk):
         tk.Button(button_frame, text="Cancel", command=dialog.destroy,
                   width=10).pack(side="left", padx=5)
 
-        exposure_entry.bind("<Return>", lambda e: apply())
+        fps_entry.bind("<Return>", lambda e: apply())
 
         # Center the dialog on the main window
         dialog.update_idletasks()
@@ -718,7 +713,7 @@ class CameraApp(tk.Tk):
         draw = ImageDraw.Draw(pil_image)
 
         try:
-            text = f"AMR: {self.amr}x\nFOV: {self.fov} mm\nExposure: {self.current_exposure}"
+            text = f"FPS: {self.camera.get_fps()} Exposure: {self.camera.get_exposure()}"
             font = ImageFont.truetype("arial.ttf", 20)
             padding = 10
 

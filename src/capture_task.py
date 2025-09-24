@@ -49,7 +49,6 @@ class CaptureTask(StoppableThread):
             capture_image(frame)
             time.sleep(CAPTURE_INTERVAL)
 
-        self.cam.release()
         print("[DRIVER] Capture thread exiting...")
 
 
@@ -76,7 +75,7 @@ def capture_image(frame):
     _delete_file()
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     filename = os.path.join(SCREENSHOT_DIRECTORY, f"image_{timestamp}.png")
-    cv2.imwrite(filename, frame)
+    cv2.imwrite(filename, frame, [cv2.IMWRITE_PNG_COMPRESSION, 0])
     print(f"[DRIVER] Saved image to {filename}")
 
 

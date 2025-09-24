@@ -5,16 +5,17 @@ import cv2
 from instrumental import instrument, list_instruments
 
 CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 960
+CAMERA_HEIGHT = 1024
 
 
 class Camera:
     def __init__(self):
-        self.app_fps = 10
+        self.app_fps = 2
         self.camera = instrument('uc480')
-        self.camera.auto_gain = True
-        self.camera.start_live_video(framerate="2Hz", exposure_time="500ms")
         self.camera.pixelclock = "5MHz"
+        self.gain = 99
+        self.camera.start_live_video(framerate="2Hz", exposure_time="500ms", \
+                                    gain=self.gain)
         self.recording = False
 
     # destructor
@@ -26,25 +27,29 @@ class Camera:
             pass  # Ignore errors during interpreter shutdown
 
     def get_frame(self):
-        # frame = self.camera.grab_image(timeout='10s', copy=True, exposure_time='10ms')
         frame = self.camera.latest_frame(copy=True)
-        # Convert to grayscale if needed (CLAHE works on 1-channel images)
-        # if len(frame.shape) == 3 and frame.shape[2] == 3:
-        #     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # else:
-        #     frame_gray = frame
-
-        # # Adaptive gain using CLAHE
-        # clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-        # frame_eq = clahe.apply(frame_gray)
-
         return frame
 
     def is_recording(self):
         return self.recording
 
+    def get_exposure(self):
+        return self.camera.exposure
+
+    def set_exposure(self, exposure_val: float):
+        self.camera.exposure = exposure_val
+        return
+
     def get_fps(self):
-        return self.app_fps
+        return self.camera.framerate
+
+    def set_fps(self, fps_val: float):
+        self.camera.stop_live_video()
+        self.camera.start_live_video(
+                framerate=f"{float(fps_val)}Hz",
+                exposure_time=self.camera.exposure,
+                gain=self.gain)
+        return
 
     def start_recording(self):
         if self.is_recording():
@@ -58,8 +63,9 @@ class Camera:
         file_name.parent.mkdir(parents=True, exist_ok=True)
 
         fourcc = cv2.VideoWriter.fourcc(*'XVID')
+        fps_to_write = round(self.get_fps().magnitude)
         self.video_writer = cv2.VideoWriter(
-            str(file_name), fourcc, self.app_fps,
+            str(file_name), fourcc, fps_to_write,
             (CAMERA_WIDTH, CAMERA_HEIGHT))
         return file_name
 
