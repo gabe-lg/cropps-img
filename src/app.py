@@ -193,7 +193,7 @@ class CameraApp(tk.Tk):
 
     def start_analysis(self):
         self.capture_task.start()
-        self.observer_obj.start_monitoring()
+        # self.observer_obj.start_monitoring()
         self.start_analysis_button.config(
             text="Stop Analysis",
             fg="darkred",
@@ -204,13 +204,13 @@ class CameraApp(tk.Tk):
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
-        self.observer_obj.stop()
+        # self.observer_obj.stop()
         self.start_analysis_button.config(
             text="Start Analysis",
             fg="darkgreen",
             command=self.start_analysis
         )
-        self.capture_task = CaptureTask(self.camera)
+        # self.capture_task = CaptureTask(self.camera)
         # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
         #                                                  self.sms_sender)
 
