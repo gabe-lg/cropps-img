@@ -13,10 +13,9 @@ DEVICE_INDEX = 0
 EXPOSURE_VALUE = 3000  # Feel free to tweak this (range: 100–60000)
 
 # the pictures from microscope are now saved in shared folder
-SCREENSHOT_DIRECTORY = r"C:\Users\CROPPS-in-Box\Documents\cropps main folder\cropps-img\assets\captured_data"
-CAPTURE_INTERVAL = 2
-FILE_LIMIT = 200
-
+CAPTURE_INTERVAL = 0.5 # Israel - Maybe this one need to be change to capture with the same frame rate of the camera - Need to properly adjust to not be overdefine
+# CAPTURE_INTERVAL = 2
+FILE_LIMIT = 100000
 
 class StoppableThread(threading.Thread):
     """Thread class with a stop() method. The thread itself has to check
@@ -36,48 +35,51 @@ class StoppableThread(threading.Thread):
 class CaptureTask(StoppableThread):
     """Thread that captures an image every `CAPTURE_INTERVAL` seconds."""
 
-    def __init__(self, camera, *args, **kwargs):
+    def __init__(self, camera, screenshot_directory, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.camera = camera
+        self.screenshot_directory = screenshot_directory
+        self.image_counter = 0
 
     def run(self):
         print("[DRIVER] Capture thread started.")
-
-        frame = self.camera.get_frame()
-
         while not self.stopped():
-            capture_image(frame)
+            frame = self.camera.get_frame() # Israel - Insert into the loop to update the captured image
+            self.capture_image(frame)
             time.sleep(CAPTURE_INTERVAL)
-
         print("[DRIVER] Capture thread exiting...")
 
+    def _delete_file(self):
+        """Deletes all files in `SCREENSHOT_DIRECTORY` if file count is greater than FILE_LIMIT"""
+        if os.path.exists(self.screenshot_directory):
+            items = os.listdir(self.screenshot_directory)
+            file_count = sum(1 for item in items if os.path.isfile(
+                os.path.join(self.screenshot_directory, item)))
+            if file_count >= FILE_LIMIT:
+                for item in items:
+                    item_path = os.path.join(self.screenshot_directory, item)
+                    if os.path.isfile(item_path):
+                        os.remove(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
 
-def _delete_file():
-    """Deletes all files in `SCREENSHOT_DIRECTORY` if file count is greater than FILE_LIMIT"""
-    if os.path.exists(SCREENSHOT_DIRECTORY):
-        items = os.listdir(SCREENSHOT_DIRECTORY)
-        file_count = sum(1 for item in items if os.path.isfile(
-            os.path.join(SCREENSHOT_DIRECTORY, item)))
-        if file_count >= FILE_LIMIT:
-            for item in items:
-                item_path = os.path.join(SCREENSHOT_DIRECTORY, item)
-                if os.path.isfile(item_path):
-                    os.remove(item_path)
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
 
-
-def capture_image(frame):
-    """Capture an image and save it in the current working directory."""
-    if not os.path.exists(SCREENSHOT_DIRECTORY):
-        os.makedirs(SCREENSHOT_DIRECTORY)
-
-    _delete_file()
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = os.path.join(SCREENSHOT_DIRECTORY, f"image_{timestamp}.png")
-    cv2.imwrite(filename, frame, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-    print(f"[DRIVER] Saved image to {filename}")
-
+    def capture_image(self, frame):
+        if not os.path.exists(self.screenshot_directory):
+            os.makedirs(self.screenshot_directory)
+        self._delete_file()
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        counter_str = f"{self.image_counter:04d}"
+        filename = os.path.join(self.screenshot_directory, f"image_{counter_str}_{timestamp}.png")
+        if frame is None or frame.size == 0:
+            print(f"[ERROR] Invalid frame; skipping save to {filename}")
+            return
+        try:
+            cv2.imwrite(filename, frame, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+            print(f"[DRIVER] Saved image to {filename}")
+            self.image_counter += 1  # Increment after successful save
+        except Exception as e:
+            print(f"[ERROR] Failed to save image {filename}: {e}")
 
 # run the code only if this script is executed directly 
 if __name__ == "__main__":

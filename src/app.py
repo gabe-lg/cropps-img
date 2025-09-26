@@ -1,3 +1,4 @@
+import os
 import sys
 import threading
 import time
@@ -15,14 +16,15 @@ if __name__ == "__main__" or __package__ is None:
     if _project_root not in sys.path:
         sys.path.insert(0, _project_root)
 
+# import src.cutter_control
 import src.analyzer
-import src.cutter_control
 import src.loggernet
-import src.trigger
+from src.trigger import Trigger
+from src.image_analysis import image_analysis
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw, ImageFont, ImageTk
-from src.capture_task import capture_image, CaptureTask
+from src.capture_task import CaptureTask
 from src.camera import Camera
 
 # Paths
@@ -89,6 +91,7 @@ class CameraApp(tk.Tk):
 
         self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
 
+        self.trigger = Trigger(pre_trigger_func=self.start_analysis)
         # Initialize camera in separate thread
         self.camera = Camera()
         # Initialize camera/UI setup on the main thread
@@ -115,7 +118,6 @@ class CameraApp(tk.Tk):
                     self.camera.write_video_frame()
 
                 pil_image = self._overlay_watermark(frame)
-                pil_image = self._overlay_text(pil_image)
 
                 # Resize to fit canvas
                 canvas_width = self.canvas.winfo_width()
@@ -168,7 +170,7 @@ class CameraApp(tk.Tk):
         """Capture an image when the button is pressed."""
         frame = self.camera.get_frame()
         if frame is not None:
-            capture_image(frame)
+            self.capture_task.capture_image(frame)
             tkinter.messagebox.showinfo("Capture",
                                         "Image captured successfully.")
         else:
@@ -191,9 +193,14 @@ class CameraApp(tk.Tk):
             tkinter.messagebox.showinfo("Recording",
                                         "No video is currently recording.")
 
-    def start_analysis(self):
+    def start_analysis(self, prefix=None):
+        project_root = Path(__file__).resolve().parent.parent  
+        assets_dir = project_root / "assets" / "captured_data"
+
+        self.screenshot_directory = assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
+        self.screenshot_directory.mkdir(parents=True, exist_ok=True)
+        self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
         self.capture_task.start()
-        # self.observer_obj.start_monitoring()
         self.start_analysis_button.config(
             text="Stop Analysis",
             fg="darkred",
@@ -204,15 +211,29 @@ class CameraApp(tk.Tk):
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
-        # self.observer_obj.stop()
         self.start_analysis_button.config(
             text="Start Analysis",
             fg="darkgreen",
             command=self.start_analysis
         )
-        # self.capture_task = CaptureTask(self.camera)
-        # self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-        #                                                  self.sms_sender)
+        try:
+            result = image_analysis(self.screenshot_directory)
+            tkinter.messagebox.showinfo("Analysis Result", f"Detection result: {result}")
+
+            if self.sms_sender.phone:
+                match result.lower().strip():
+                    case "current injection":
+                        pass # replace
+                    case "burn":
+                        pass # replace with `self.sms_sender.send_msg(self.sms_sender.phone, "...")`
+                    case _:
+                        pass
+                self.sms_sender.send_msg(self.sms_sender.phone, f"Detection result: {result}")
+
+        except Exception as e:
+            tkinter.messagebox.showerror("Analysis Error", f"Failed to analyze images: {e}")
+        finally:
+            self.capture_task = None
 
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
@@ -483,9 +504,9 @@ class CameraApp(tk.Tk):
 
         self.triggers_menu.add_command(
             label="Current Injection",
-            command=lambda: src.trigger.injection(self.current_injection_port))
+            command=lambda: self.trigger.injection(self.current_injection_port))
         self.triggers_menu.add_command(
-            label="Burn", command=lambda: src.trigger.burn(self.burn_port))
+            label="Burn", command=lambda: self.trigger.burn(self.burn_port))
 
         self.triggers_button.pack(side='left', padx=5)
 
@@ -546,9 +567,11 @@ class CameraApp(tk.Tk):
                 # I just found out python has pattern matching!!!!!
                 match new_msg:
                     case "current injection":
-                        src.trigger.injection(self.current_injection_port)
+                        self.trigger.injection(self.current_injection_port)
                     case "burn":
-                        src.trigger.burn(self.burn_port)
+                        self.trigger.burn(self.burn_port)
+                    case "stop":
+                        self.stop_analysis()
                     case _:
                         raise ValueError("Not supported")
             except Exception as e:
@@ -623,14 +646,11 @@ class CameraApp(tk.Tk):
         self.recording = False
         self.video_writer = None
         self.analyzing = False
-        self.capture_task = CaptureTask(self.camera)
+        self.capture_task = None
         self.cap = cv2.VideoCapture(0)
-        self.analyzer = src.analyzer.Analyzer()
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
         self.loggernet = src.loggernet.Loggernet()
-        self.observer_obj = src.analyzer.ObserverWrapper(self.analyzer,
-                                                         self.sms_sender)
 
         # Setup UI components
         self._setup_scroll_frame()
@@ -704,25 +724,6 @@ class CameraApp(tk.Tk):
         y = self.winfo_y() + (self.winfo_height() // 2) - (
                 dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
-
-    # !! TODO: REMOVE EXPOSURE/OTHER DINOLITE specific metadata
-    ## other helpers ##
-    def _overlay_text(self, pil_image):
-        """Overlay text in the northeast corner of the frame"""
-        # Create a drawing object
-        draw = ImageDraw.Draw(pil_image)
-
-        try:
-            text = f"FPS: {self.camera.get_fps()} Exposure: {self.camera.get_exposure()}"
-            font = ImageFont.truetype("arial.ttf", 20)
-            padding = 10
-
-            # Draw white text in the red rectangle
-            draw.text((padding, 150), text, fill='white',
-                      font=font)
-
-        finally:
-            return pil_image
 
     def _overlay_watermark(self, frame):
         """Overlay the watermark on the frame."""

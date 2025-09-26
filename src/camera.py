@@ -13,7 +13,7 @@ class Camera:
         self.app_fps = 2
         self.camera = instrument('uc480')
         self.camera.pixelclock = "5MHz"
-        self.gain = 99
+        self.gain = 100
         self.camera.start_live_video(framerate="2Hz", exposure_time="500ms", \
                                     gain=self.gain)
         self.recording = False

@@ -14,7 +14,7 @@ import src.sms_sender
 
 class Analyzer:
     def __init__(self):
-        self.MAX_PROCESSED_IMAGES = 200
+        self.MAX_PROCESSED_IMAGES = 300
 
         # Change to your image directory (normalize slashes for platform!)
         self.dir = r"C:\Users\CROPPS-in-Box\Documents\cropps main folder\cropps-img\assets\captured_data"
@@ -287,6 +287,7 @@ class ObserverWrapper:
 
 class Histogram:
     def __init__(self):
+        import numpy as np
         self.fig, self.ax = plt.subplots(figsize=(8, 5))
         self.hist_line, = self.ax.plot(np.full(256, 255), color='black')
         self.ax.set_title("Pixel Intensity Histogram")
@@ -296,7 +297,7 @@ class Histogram:
         self.ax.set_xlabel("Intensity Value")
         self.ax.set_ylabel("Pixel Count")
         self.ax.grid(True)
-
+      
     def update(self, img):
         # Compute histogram (256 bins for intensity values 0-255)
         hist = cv2.calcHist([img], [0], None, [256], [0, 256]).flatten()

@@ -7,8 +7,8 @@ import serial
 
 # Configuration (adjust as needed)
 BAUD_RATE = 9600
-CURRENT = 20e-6  # Constant current in Amps (e.g., 20 µA)
-MEASUREMENT_TIME = 20  # Total time in seconds
+CURRENT = 40e-6  # Constant current in Amps (e.g., 20 µA)
+MEASUREMENT_TIME = 30  # Total time in seconds
 SAMPLE_INTERVAL = 0.01  # Sampling interval in seconds
 VOLT_COMPLIANCE = 200  # Voltage compliance in V
 

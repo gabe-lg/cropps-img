@@ -8,6 +8,7 @@
 .idea/
 
 # Output/media files
+**/*/captured_data
 *.png
 *.avi
 *.zip
