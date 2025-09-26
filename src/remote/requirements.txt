@@ -1,0 +1,5 @@
+flask
+numpy
+matplotlib
+opencv-python-headless
+chalk
