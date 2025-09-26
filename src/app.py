@@ -4,7 +4,6 @@ import threading
 import time
 import tkinter as tk
 import tkinter.messagebox
-import tkinter.simpledialog
 from pathlib import Path
 
 import cv2
@@ -21,6 +20,7 @@ import src.analyzer
 import src.loggernet
 from src.trigger import Trigger
 from src.image_analysis import image_analysis
+from src.remote_image_analysis import remote_image_analysis
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw, ImageFont, ImageTk
@@ -216,24 +216,36 @@ class CameraApp(tk.Tk):
             fg="darkgreen",
             command=self.start_analysis
         )
-        try:
-            result = image_analysis(self.screenshot_directory)
-            tkinter.messagebox.showinfo("Analysis Result", f"Detection result: {result}")
 
-            if self.sms_sender.phone:
-                match result.lower().strip():
-                    case "current injection":
-                        pass # replace
-                    case "burn":
-                        pass # replace with `self.sms_sender.send_msg(self.sms_sender.phone, "...")`
-                    case _:
-                        pass
-                self.sms_sender.send_msg(self.sms_sender.phone, f"Detection result: {result}")
+        # Show a non-blocking "waiting" message
+        waiting_win = tk.Toplevel()
+        waiting_win.title("Please wait")
+        tk.Label(waiting_win, text="Running remote analysis...\nThis may take a while.").pack(padx=30, pady=30)
+        
+        @threaded
+        def worker():
+            try:
+                result = image_analysis(self.screenshot_directory)
+                # result = remote_image_analysis(self.screenshot_directory)
+                self.after(0, lambda: tkinter.messagebox.showinfo("Analysis Result", f"Detection result: {result}"))
+                
+                if self.sms_sender.phone:
+                    match result.lower().strip():
+                        case "current injection":
+                            pass  # replace
+                        case "burn":
+                            self.sms_sender.send_msg(self.sms_sender.phone, "🔥 Burn detected!")
+                        case _:
+                            pass
+                    self.sms_sender.send_msg(self.sms_sender.phone, f"Detection result: {result}")
 
-        except Exception as e:
-            tkinter.messagebox.showerror("Analysis Error", f"Failed to analyze images: {e}")
-        finally:
-            self.capture_task = None
+            except Exception as e:
+                self.after(0, lambda: tkinter.messagebox.showerror("Analysis Error", f"Failed to analyze images: {e}"))
+            finally:
+                self.after(0, waiting_win.destroy)
+
+        worker()
+        self.capture_task = None
 
     def sms_info(self):
         sms_dialog = tk.Toplevel(self)
