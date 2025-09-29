@@ -1,6 +1,7 @@
 import os, io, zipfile, requests
 
-REDCLOUD_ENDPOINT = "http://128.84.40.199:3000/analyze"
+REDCLOUD_ENDPOINT = "http://128.84.40.199:32000/analyze"
+
 
 def remote_image_analysis(directory: str, server_url=REDCLOUD_ENDPOINT):
     print(f"[INFO] Preparing to send images from directory: {directory}")
@@ -15,7 +16,9 @@ def remote_image_analysis(directory: str, server_url=REDCLOUD_ENDPOINT):
                 zipf.write(fpath, arcname=fname)
 
     zip_buffer.seek(0)
-    print(f"[INFO] Finished zipping images. Size = {len(zip_buffer.getvalue())/1024:.2f} KB")
+    print(
+        f"[INFO] Finished zipping images. Size = {len(zip_buffer.getvalue())/1024:.2f} KB"
+    )
 
     # Send to server
     print(f"[INFO] Sending files to {server_url}")
