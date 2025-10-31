@@ -17,7 +17,7 @@ THRESHOLD_NOTHING = 50  # Pixels <50: Nothing happened
 THRESHOLD_INJECTION = 10000  # Pixels 50-10000: Current injection
 
 # Flag to enable/disable figure creation
-CREATE_FIGURE = False
+CREATE_FIGURE = os.getenv('CREATE_FIGURE', '0') == '1'
 
 def plot_pixel_counts_vs_prev(pixel_counts_prev, screenshot_directory):
     """Plot pixel counts (intensity 40-170 after previous frame subtraction) vs. frame number and save."""
