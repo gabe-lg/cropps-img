@@ -8,12 +8,12 @@ IMAGE_WIDTH = 1280
 IMAGE_HEIGHT = 1024
 
 # Pixel intensity range to track
-MIN_INTENSITY = 40
+MIN_INTENSITY = 20
 MAX_INTENSITY = 170
 
 # Analysis parameters
 MAX_FRAMES = 101  # Check first 100 frames for detection
-THRESHOLD_NOTHING = 50  # Pixels <50: Nothing happened
+THRESHOLD_NOTHING = 35  # Pixels <50: Nothing happened
 THRESHOLD_INJECTION = 10000  # Pixels 50-10000: Current injection
 
 # Flag to enable/disable figure creation

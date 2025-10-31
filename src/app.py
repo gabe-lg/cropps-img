@@ -91,7 +91,8 @@ class CameraApp(tk.Tk):
         self.current_injection_port = "COM3"
         self.burn_port = "COM4"
 
-        self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
+        self.show_graph = False
+        # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
 
         self.trigger = Trigger(pre_trigger_func=self.start_analysis)
         # Initialize camera in separate thread
@@ -218,7 +219,7 @@ class CameraApp(tk.Tk):
         )
 
         # variable to control remote/local analysis
-        REMOTE = True
+        REMOTE = False
 
         # Show a non-blocking "waiting" message
         waiting_win = tk.Toplevel()
@@ -723,7 +724,8 @@ class CameraApp(tk.Tk):
         self.cap = cv2.VideoCapture(0)
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
-        self.loggernet = src.loggernet.Loggernet()
+        if self.show_graph:
+            self.loggernet = src.loggernet.Loggernet()
 
         # Setup UI components
         self._load_watermark(WATERMARK_PATH)
