@@ -4,6 +4,7 @@ import threading
 import time
 import tkinter as tk
 import tkinter.messagebox
+from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 
 import cv2
@@ -56,6 +57,7 @@ class CameraApp(tk.Tk):
         self.iconphoto(False, self.icon)
         # TODO: add button that toggles whether data is displayed in camera feed
         self.show_logger = True
+        self.threads = []
 
         # self.resizable(False, False)
         # self.attributes('-fullscreen', True)
@@ -99,13 +101,17 @@ class CameraApp(tk.Tk):
         self.camera = Camera()
         # Initialize camera/UI setup on the main thread
         self._init_camera_thread()
+        self._last_msg_history = []
+        self.after(2000, self._poll_messages)
 
     def quit(self):
-        self.sms_sender.send_debug_msg("Exiting...")
+        # self.sms_sender.send_debug_msg("Exiting...")
         # self.stop_analysis()
-        # self.camera.release()
+        for t in self.threads:
+            try: t.join()
+            except: continue
+        self.camera = None
         self.destroy()
-        super().quit()
 
     ## main update function ##
     def update_camera_feed(self):
@@ -244,6 +250,7 @@ class CameraApp(tk.Tk):
                 )
 
                 if self.sms_sender.phone:
+                    text_body = None
                     match result.lower().strip():
                         case "current injection":
                             self.sms_sender.send_msg(
@@ -582,7 +589,8 @@ class CameraApp(tk.Tk):
 
     @threaded
     def _init_sms_receiver(self):
-        threading.Thread(target=self.sms_sender.read_msg).start()
+        self.threads.append \
+            (threading.Thread(target=self.sms_sender.read_msg).start())
         print("Message observer started")
         self._msg_observer()
 
@@ -632,6 +640,36 @@ class CameraApp(tk.Tk):
                 print("An error occurred while running external script:", e)
             finally:
                 self.sms_sender.new_msg_event.clear()
+
+    @threaded
+    def _poll_messages(self):
+        """Periodically refresh chatbox with updated message history."""
+        try:
+            if self.sms_sender and self.sms_sender.phone:
+                msgs = self.sms_sender.get_msg_history(self.sms_sender.phone)
+                # Only update if there’s new content
+                if msgs != getattr(self, "_last_msg_history", []):  
+                    self._last_msg_history = msgs
+                    self._refresh_chatbox(msgs)
+
+        except Exception as e:
+            print("Error polling messages:", e)
+
+        # Schedule again in 3.5 seconds
+        self.after(3500, self._poll_messages)
+
+    def _refresh_chatbox(self, msgs):
+        """Replace chatbox content with current message history."""
+        self.chatbox.configure(state="normal")
+        self.chatbox.delete("1.0", "end")
+
+        for m in msgs:
+            sender = "You" if m["type"] == "sent" else self.sms_sender.name or "Contact"
+            ts = time.strftime("%H:%M:%S", time.localtime(m["timestamp"] / 1000))
+            self.chatbox.insert("end", f"[{ts}] {sender}: {m['body']}\n")
+
+        self.chatbox.configure(state="disabled")
+        self.chatbox.yview("end")
 
     def _setup_canvases(self):
         # --- Main frame to hold camera (left) + logger (right) ---
@@ -684,11 +722,21 @@ class CameraApp(tk.Tk):
             self.webcam_canvas.pack(side="top", fill="both", expand=True, pady=(5, 10))
 
             # --- Bottom: Histogram ---
-            if self.show_graph:
-                hist_frame = tk.Frame(right_frame)
-                hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
-                self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig, master=hist_frame)
-                self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
+            # --- Chatbox ---
+            chat_frame = tk.Frame(right_frame, bg="white", height=200)
+            chat_frame.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+
+            chat_label = tk.Label(chat_frame, text="Message History", font=("Arial", 14, "bold"), bg="white")
+            chat_label.pack(anchor="w")
+
+            # ScrolledText for chat messages
+            self.chatbox = ScrolledText(chat_frame, wrap="word", height=15, state="disabled", font=("Segoe UI Emoji", 12))
+            self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
+            # if self.show_graph:
+            #     hist_frame = tk.Frame(right_frame)
+            #     hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
+            #     self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig, master=hist_frame)
+            #     self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
 
         self.imgtk = None  # Keep a reference
 

@@ -52,6 +52,7 @@ To replicate this project on your computer please do the following:
     - Dino Lite SDK: [Download Link](https://www.dino-lite.com/download06.php)
     - Dino Lite SDK Python Wrapper: [GitHub Link](https://github.com/dino-lite/DNX64-Python-API)
     - Shell MS: [GitHub Link](https://github.com/try2codesecure/ShellMS)
+      - NOTE: You will need to allow restricted permissions on Android for SMS for ShellMS. You may also need OEM Motorola drivers for Windows for the Moto G phone.
     - ADB for Windows: [Download Link](https://dl.google.com/android/repository/platform-tools-latest-windows.zip)
 2. Clone the repository:
    ```bash

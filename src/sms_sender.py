@@ -1,6 +1,7 @@
 import difflib
 import os
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -18,7 +19,6 @@ class SmsSender:
         self.new_msg_event = threading.Event()
         self.new_msgs = queue.Queue()  # individual msgs
         self.init_ms = int(time.time() * 1000)
-
         oldpwd = os.getcwd()
         try:
             os.chdir(self.dir)
@@ -84,7 +84,6 @@ class SmsSender:
         try:
             os.chdir(self.dir)
             subprocess.run(command, check=True)
-            print(f"Message sent to {self.phone}: {message}")
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e}")
         finally:
@@ -96,6 +95,8 @@ class SmsSender:
         prints a list of new messages received at every iteration.
         :param days_ago: Read messages received up to `days_ago` days ago.
         """
+
+        # TODO: only read messages from the contact added in the box 
         while True:
             cmd = [
                 './adb', 'shell', 'content', 'query',
@@ -107,7 +108,6 @@ class SmsSender:
             os.chdir(self.dir)
             output = subprocess.run(cmd, check=True, capture_output=True,
                                     text=True).stdout
-
             orig = [r.partition("body=")[2].strip() for r in
                     self.sms_msgs.splitlines() if "body=" in r]
             new = [r.partition("body=")[2].strip() for r in
@@ -122,8 +122,97 @@ class SmsSender:
                     self.new_msg_event.set()
 
             self.sms_msgs = output
+    
+    def __fix_encoding(self, text: str) -> str:
+        """
+        Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€”' → '—', 'ðŸ”¥' → '🔥').
+        """
+        try:
+            # Convert as if the text was incorrectly decoded from UTF-8 as Latin-1
+            return text.decode('utf-8')
+        except Exception:
+            return text
+
+    def get_msg_history(self, phone: str):
+        """
+        Returns a list of messages (both sent and received) for the given phone
+        number, starting from self.init_ms. Each message is represented as a dict:
+        {
+            "type": "sent" | "received",
+            "body": <message text>,
+            "timestamp": <epoch ms>
+        }
+        """
+
+        oldpwd = os.getcwd()
+        os.chdir(self.dir)
+
+        try:
+            # Read received (inbox) messages
+            inbox_cmd = [
+                './adb', 'shell', 'content', 'query',
+                '--uri', 'content://sms/inbox',
+                '--projection', 'address,body,date',
+                '--where', f"date\\>={self.init_ms}"
+            ]
+            inbox_output = subprocess.run(inbox_cmd, check=True, capture_output=True).stdout.decode("utf-8", errors="ignore")
+
+            # Read sent messages
+            sent_cmd = [
+                './adb', 'shell', 'content', 'query',
+                '--uri', 'content://sms/sent',
+                '--projection', 'address,body,date',
+                '--where', f"date\\>={self.init_ms}"
+            ]
+            sent_output = subprocess.run(sent_cmd, check=True, capture_output=True).stdout.decode("utf-8", errors="ignore")
+
+        finally:
+            os.chdir(oldpwd)
+
+        def parse_sms_output(output: str, msg_type: str, phone: str):
+            msgs = []
+            if not output:
+                return msgs
+
+            # Split by "Row:" lines
+            row_blocks = re.split(r"Row:\s*\d+\s*", output)
+            for block in row_blocks:
+                block = block.strip()
+                if not block:
+                    continue
+
+                # Match fields using a more tolerant regex
+                # Handles commas inside body and trailing whitespace
+                match = re.search(
+                    r"address=([^,]+),\s*body=(.*),\s*date=(\d+)", block, re.DOTALL
+                )
+                if not match:
+                    continue
+
+                address, body, date = match.groups()
+                if phone not in address:
+                    continue
+
+                body = body.strip()
+
+                msgs.append({
+                    "type": msg_type,
+                    "body": body,
+                    "timestamp": int(date)
+                })
+
+            return msgs
+
+        inbox_msgs = parse_sms_output(inbox_output, "received", phone)
+        sent_msgs = parse_sms_output(sent_output, "sent", phone)
+
+        # Merge and sort chronologically
+        all_msgs = inbox_msgs + sent_msgs
+        all_msgs.sort(key=lambda m: m["timestamp"])
+
+        return all_msgs
 
 
 if __name__ == '__main__':
     sms_sender = SmsSender()
-    threading.Thread(target=sms_sender.read_msg).start()
+    # threading.Thread(target=sms_sender.read_msg).start()
