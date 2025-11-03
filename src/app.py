@@ -126,7 +126,7 @@ class CameraApp(tk.Tk):
 
         if self.camera:
             frame = self.camera.get_frame()
-            if frame:
+            if frame is not None:
                 # if hasattr(self, 'capture_task') and self.capture_task is not None:
                 # self.capture_task.set_frame(frame)
                 # self.analyzer.paint_square(frame)
@@ -176,7 +176,7 @@ class CameraApp(tk.Tk):
                 pil_image = pil_image.copy()
                 pil_image.thumbnail((canvas_width, canvas_height),
                                     Image.Resampling.LANCZOS)
-                self.imgtk = ImageTk.PhotoImage(image=pil_image)
+                self.imgtk_web = ImageTk.PhotoImage(image=pil_image)
                 self.webcam_canvas.delete("all")
 
                 x = (canvas_width - img.width) // 2
@@ -184,7 +184,7 @@ class CameraApp(tk.Tk):
 
                 self.webcam_canvas.imgtk = self.imgtk
                 self.webcam_canvas.create_image(x, y, anchor=tk.NW,
-                                                image=self.imgtk)
+                                                image=self.imgtk_web)
 
         # Repeat this method after a short delay
         if self.camera:

@@ -1,19 +1,19 @@
 {
     "initial_text": {
-        "current": [
+        "old": [
             "Hi $NAME, it\\u2019s me, your plant Arabella the Arabidopsis. These scientists have wired me up like a bio-battery on my leaves, sending currents that range from a gentle tickle to a fiery burn that leaves me smoking.\\u000a\\u000aHelp a plant out: send sunlight, water, or a hilarious meme to recharge my spirits.\\u000a\\u000aDon\\u2019t leaf me in the dark! \\U0001F33F\\u26A1\\U0001F525",
             "Psst, $NAME... feeling adventurous? You can control my fate from afar!\\u000a\\u000aReply '1' for a tickle or '2' for a burn (like a dramatic fireworks show on my leaves).\\u000a\\u000aWhich thrill will you pick? Reply now!\\u000a\\u000a\\u26A11 or \\U0001F5252?"
         ],
-        "from_doc": [
-            "Hi $NAME, it\\u2019s me, your plant Ari the Arabidopsis. These scientists have wired my leaves to send currents that range from a gentle tickle to a jolt. Please send a hilarious meme to recharge my spirits. Don’t leaf me in the dark! \\U0001F33F\\u26A1\\U0001F525",
-            "Psst, $NAME... you can control my response from your phone!\nReply 1 for a tickle or 2 for a jolt.\nWhich will you pick? Reply now!\n\n1: You gave me a tickle!\n\n2: You hit me with a jolt!\n"
+        "current": [
+            "Hi $NAME, it\\u2019s me, your plant Ari the Arabidopsis. These scientists have wired my leaves to send currents that range from a gentle tickle to a jolt. Please send a hilarious meme to recharge my spirits. Don\\u2019t leaf me in the dark! \\U0001F33F\\u26A1\\U0001F525",
+            "Psst, $NAME... you can control my response from your phone!\nReply 1 for a tickle or 2 for a jolt.\nWhich will you pick? Reply now!\\u000a\\u000a1: You gave me a tickle!\\u000a\\u000a2: You hit me with a jolt!"
         ]
     },
     "received": {
-        "trigger": "TODO",
-        "burn": "TODO",
-        "stop": "TODO",
-        "else": "TODO"
+        "trigger": "Got it! Watch me to see what happens next!",
+        "burn": "Got it! Watch me to see what happens next!",
+        "stop": "Analysis stopped",
+        "else": "Oops! Please choose 1 or 2."
     },
     "detected": {
         "trigger": "You gave me a tickle with that current. Jolt confirmed! \\u26A1",
