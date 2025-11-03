@@ -1,10 +1,25 @@
 import difflib
+import json
 import os
 import queue
 import re
 import subprocess
 import threading
 import time
+
+
+def fix_encoding(data):
+    """
+    Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€”' → '—', 'ðŸ”¥' → '🔥').
+    """
+
+    def decode_unicode_escape(match):
+        return bytes(match.group(0), 'utf-8').decode('unicode_escape')
+
+    # Match both \u and \U escape sequences (up to 8 hex digits)
+    result = re.sub(r'\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}',
+                    decode_unicode_escape, data)
+    return result
 
 
 class SmsSender:
@@ -17,8 +32,14 @@ class SmsSender:
         self.phone_for_debug = ""  # change
         self.sms_msgs = ""  # full output
         self.new_msg_event = threading.Event()
+        self.msg_changed_event = threading.Event()
         self.new_msgs = queue.Queue()  # individual msgs
         self.init_ms = int(time.time() * 1000)
+
+        # messages to send
+        with open('assets/sms_template.json') as f:
+            self.template = json.load(f)
+
         oldpwd = os.getcwd()
         try:
             os.chdir(self.dir)
@@ -58,14 +79,17 @@ class SmsSender:
         Returns: 0 if successful; otherwise 1
         """
         if not (self.name and self.phone): return 1
-        self.send_msg(self.phone,
-                      f"Hi {self.name}, I’m hurt! Please help 😱😱")
+        sms_sender.send_msg(sms_sender.template["detected"][0])
         return 0
 
     def send_debug_msg(self, message: str):
         self.send_msg(self.phone_for_debug, message)
 
-    def send_msg(self, phone, message):
+    def send_msg(self, message, phone=None):
+        if not phone: phone = self.phone
+        message = fix_encoding(message).replace("$NAME", self.name)
+        print("[send_msg]: A message has been sent.")
+
         command = [
             "./adb",
             "shell",
@@ -84,6 +108,7 @@ class SmsSender:
         try:
             os.chdir(self.dir)
             subprocess.run(command, check=True)
+            self.msg_changed_event.set()
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e}")
         finally:
@@ -96,7 +121,10 @@ class SmsSender:
         :param days_ago: Read messages received up to `days_ago` days ago.
         """
 
-        # TODO: only read messages from the contact added in the box 
+        # not_TODO: only read messages from the contact added in the box 
+        # Handled by `get_msg_history`. This function is useful since it only
+        #  execute one command per cycle. Also controls `new_msg_event`.
+
         while True:
             cmd = [
                 './adb', 'shell', 'content', 'query',
@@ -120,18 +148,12 @@ class SmsSender:
                 if line.startswith('+') and not line.startswith('+++'):
                     self.new_msgs.put(line[1:].lower().strip())
                     self.new_msg_event.set()
+                    self.msg_changed_event.set()
 
             self.sms_msgs = output
-    
-    def __fix_encoding(self, text: str) -> str:
-        """
-        Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€”' → '—', 'ðŸ”¥' → '🔥').
-        """
-        try:
-            # Convert as if the text was incorrectly decoded from UTF-8 as Latin-1
-            return text.decode('utf-8')
-        except Exception:
-            return text
+
+            # 2 seconds ok?
+            time.sleep(2)
 
     def get_msg_history(self, phone: str):
         """
@@ -155,7 +177,9 @@ class SmsSender:
                 '--projection', 'address,body,date',
                 '--where', f"date\\>={self.init_ms}"
             ]
-            inbox_output = subprocess.run(inbox_cmd, check=True, capture_output=True).stdout.decode("utf-8", errors="ignore")
+            inbox_output = subprocess.run(inbox_cmd, check=True,
+                                          capture_output=True).stdout.decode(
+                "utf-8", errors="ignore")
 
             # Read sent messages
             sent_cmd = [
@@ -164,7 +188,9 @@ class SmsSender:
                 '--projection', 'address,body,date',
                 '--where', f"date\\>={self.init_ms}"
             ]
-            sent_output = subprocess.run(sent_cmd, check=True, capture_output=True).stdout.decode("utf-8", errors="ignore")
+            sent_output = subprocess.run(sent_cmd, check=True,
+                                         capture_output=True).stdout.decode(
+                "utf-8", errors="ignore")
 
         finally:
             os.chdir(oldpwd)
@@ -184,7 +210,8 @@ class SmsSender:
                 # Match fields using a more tolerant regex
                 # Handles commas inside body and trailing whitespace
                 match = re.search(
-                    r"address=([^,]+),\s*body=(.*),\s*date=(\d+)", block, re.DOTALL
+                    r"address=([^,]+),\s*body=(.*),\s*date=(\d+)", block,
+                    re.DOTALL
                 )
                 if not match:
                     continue
@@ -215,4 +242,11 @@ class SmsSender:
 
 if __name__ == '__main__':
     sms_sender = SmsSender()
+    sms_sender.set_info("", "")
+    # sms_sender.send_msg(sms_sender.template["initial_text"]["current"][0])
+    # sms_sender.send_msg(sms_sender.template["initial_text"]["current"][1])
+    # sms_sender.send_msg(sms_sender.template["detected"]["trigger"])
+    # sms_sender.send_msg(sms_sender.template["detected"]["burn"])
+    # sms_sender.send_msg(sms_sender.template["detected"]["else"])
+    # sms_sender.send_msg(sms_sender.template["detected"][0])
     # threading.Thread(target=sms_sender.read_msg).start()

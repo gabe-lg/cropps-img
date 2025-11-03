@@ -1,11 +1,10 @@
-import os
 import sys
 import threading
 import time
 import tkinter as tk
 import tkinter.messagebox
-from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
+from tkinter.scrolledtext import ScrolledText
 
 import cv2
 from instrumental import Q_
@@ -23,13 +22,13 @@ from src.trigger import Trigger
 from src.image_analysis import image_analysis
 from src.remote_image_analysis import remote_image_analysis
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import CaptureTask
 from src.camera import Camera
 
 # Paths
-WATERMARK_PATH = Path(__file__).parent.parent / "assets" / "cropps_watermark_dark.png"
+WATERMARK_PATH = Path(
+    __file__).parent.parent / "assets" / "cropps_watermark_dark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
 BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
 
@@ -58,6 +57,7 @@ class CameraApp(tk.Tk):
         # TODO: add button that toggles whether data is displayed in camera feed
         self.show_logger = True
         self.threads = []
+        self._last_msg_history = []
 
         # self.resizable(False, False)
         # self.attributes('-fullscreen', True)
@@ -105,17 +105,16 @@ class CameraApp(tk.Tk):
             self.camera = None
             print(f"Error loading camera: {e}")
 
-        # Initialize camera/UI setup on the main thread
         self._init_camera_thread()
-        self._last_msg_history = []
-        self.after(2000, self._poll_messages)
 
     def quit(self):
         # self.sms_sender.send_debug_msg("Exiting...")
         # self.stop_analysis()
         for t in self.threads:
-            try: t.join()
-            except: continue
+            try:
+                t.join()
+            except:
+                continue
         self.camera = None
         self.destroy()
 
@@ -123,47 +122,44 @@ class CameraApp(tk.Tk):
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
         # === Main camera (self.camera) ===
-        if hasattr(self, "camera"):
-            if self.camera:
-                frame = self.camera.get_frame()
-                if frame is not None:
-                    # if hasattr(self, 'capture_task') and self.capture_task is not None:
-                    # self.capture_task.set_frame(frame)
-                    # self.analyzer.paint_square(frame)
-                    if self.camera.is_recording():
-                        self.camera.write_video_frame()
+        if not hasattr(self, "camera"): return
 
-                    pil_image = self._process_frame(frame)
+        if self.camera:
+            frame = self.camera.get_frame()
+            if frame:
+                # if hasattr(self, 'capture_task') and self.capture_task is not None:
+                # self.capture_task.set_frame(frame)
+                # self.analyzer.paint_square(frame)
+                if self.camera.is_recording():
+                    self.camera.write_video_frame()
 
-                    # Resize to fit canvas
-                    canvas_width = self.canvas.winfo_width()
-                    canvas_height = self.canvas.winfo_height()
-                    pil_image = pil_image.copy()
-                    pil_image.thumbnail(
-                        (canvas_width, canvas_height), Image.Resampling.LANCZOS
-                    )
-                    self.imgtk = ImageTk.PhotoImage(image=pil_image)
-                    self.canvas.delete("all")
+                pil_image = self._process_frame(frame, "Scientific Camera")
 
-                    x = (canvas_width - pil_image.width) // 2
-                    y = (canvas_height - pil_image.height) // 2
-                    self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
+                # Resize to fit canvas
+                canvas_width = self.canvas.winfo_width()
+                canvas_height = self.canvas.winfo_height()
+                pil_image = pil_image.copy()
+                pil_image.thumbnail(
+                    (canvas_width, canvas_height), Image.Resampling.LANCZOS
+                )
+                self.imgtk = ImageTk.PhotoImage(image=pil_image)
+                self.canvas.delete("all")
 
-                    # Update histogram if frame exists
-                    # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
-                    #     0)
-                    # self.loggernet_canvas.draw_idle()
+                x = (canvas_width - pil_image.width) // 2
+                y = (canvas_height - pil_image.height) // 2
+                self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
-                else:
-                    self.canvas.delete("all")
-                    self.imgtk = None
+                # Update histogram if frame exists
+                # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
+                #     0)
+                # self.loggernet_canvas.draw_idle()
 
-            if self.show_graph:
-                self.histogram.update(frame)
-                self.canvas.create_rectangle(0, 0, self.canvas.winfo_width(),
-                                             self.canvas.winfo_height(),
-                                             fill="black", outline="")
-                self.histogram_canvas.draw_idle()
+        if self.show_graph:
+            self.histogram.update(frame)
+            self.canvas.create_rectangle(0, 0, self.canvas.winfo_width(),
+                                         self.canvas.winfo_height(),
+                                         fill="black", outline="")
+            self.histogram_canvas.draw_idle()
 
         # === OpenCV webcam feed (self.cap) ===
         if hasattr(self, "cap") and self.cap.isOpened():
@@ -172,22 +168,29 @@ class CameraApp(tk.Tk):
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 img = Image.fromarray(frame)
 
+                pil_image = self._process_frame(frame, "Live Streaming")
+
                 # Resize to fit a portion of the window
                 canvas_width = self.webcam_canvas.winfo_width()
                 canvas_height = self.webcam_canvas.winfo_height()
-                img = img.copy()
-                img.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-                imgtk = ImageTk.PhotoImage(image=img)
+                pil_image = pil_image.copy()
+                pil_image.thumbnail((canvas_width, canvas_height),
+                                    Image.Resampling.LANCZOS)
+                self.imgtk = ImageTk.PhotoImage(image=pil_image)
                 self.webcam_canvas.delete("all")
 
                 x = (canvas_width - img.width) // 2
                 y = (canvas_height - img.height) // 2
 
-                self.webcam_canvas.imgtk = imgtk
-                self.webcam_canvas.create_image(x, y, anchor=tk.NW, image=imgtk)
+                self.webcam_canvas.imgtk = self.imgtk
+                self.webcam_canvas.create_image(x, y, anchor=tk.NW,
+                                                image=self.imgtk)
 
         # Repeat this method after a short delay
-        self.after(1000 // self.camera.app_fps, self.update_camera_feed)
+        if self.camera:
+            self.after(1000 // self.camera.app_fps, self.update_camera_feed)
+        else:
+            self.after(10, self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -196,7 +199,8 @@ class CameraApp(tk.Tk):
         frame = self.camera.get_frame()
         if frame is not None:
             self.capture_task.capture_image(frame)
-            tkinter.messagebox.showinfo("Capture", "Image captured successfully.")
+            tkinter.messagebox.showinfo("Capture",
+                                        "Image captured successfully.")
         else:
             tkinter.messagebox.showerror("Capture", "Failed to capture image.")
 
@@ -215,14 +219,15 @@ class CameraApp(tk.Tk):
             self.start_record_button.config(state="normal")
             tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
         else:
-            tkinter.messagebox.showinfo("Recording", "No video is currently recording.")
+            tkinter.messagebox.showinfo("Recording",
+                                        "No video is currently recording.")
 
     def start_analysis(self, prefix=None):
         project_root = Path(__file__).resolve().parent.parent
         assets_dir = project_root / "assets" / "captured_data"
 
         self.screenshot_directory = (
-            assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
+                assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
         )
         self.screenshot_directory.mkdir(parents=True, exist_ok=True)
         self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
@@ -269,18 +274,15 @@ class CameraApp(tk.Tk):
                     match result.lower().strip():
                         case "current injection":
                             self.sms_sender.send_msg(
-                                self.sms_sender.phone,
-                                "You gave me a tickle with that current—jolt confirmed! ⚡",
+                                self.sms_sender.template["detected"]["trigger"]
                             )
                         case "burn":
                             self.sms_sender.send_msg(
-                                self.sms_sender.phone,
-                                "Ouch! You hit me with a burn—fireworks on my leaves! 🔥",
+                                self.sms_sender.template["detected"]["burn"]
                             )
                         case _:
                             self.sms_sender.send_msg(
-                                self.sms_sender.phone,
-                                "All quiet here — no tickles or burns. I’m just chilling. 🌿",
+                                self.sms_sender.template["detected"]["else"]
                             )
 
             except Exception as e:
@@ -325,7 +327,8 @@ class CameraApp(tk.Tk):
 
         # create label and input for the phone number
         contact_label = tk.Label(
-            sms_dialog, text="Enter phone number: ", font=("TkTextFont", 18), bg="white"
+            sms_dialog, text="Enter phone number: ", font=("TkTextFont", 18),
+            bg="white"
         )
         contact_label.grid(row=2, column=0, padx=10, pady=10)
         contact_entry = tk.Entry(sms_dialog)
@@ -344,30 +347,32 @@ class CameraApp(tk.Tk):
             # Only set contact info if the checkbox is checked
             if receive_sms_var.get():
                 if not name or not contact:
-                    error_label.config(text="Please provide a name and phone number.")
+                    error_label.config(
+                        text="Please provide a name and phone number.")
                 else:
                     self.sms_sender.set_info(name, contact)
-                    self.sms_sender.send_msg(
-                        contact,
-                        f"Hi {name}, it’s me, your plant Arabella the Arabidopsis. These scientists have wired me up like a bio-battery on my leaves, sending currents that range from a gentle tickle to a fiery burn that leaves me smoking. Help a plant out: send sunlight, water, or a hilarious meme to recharge my spirits. Don’t leaf me in the dark! 🌿⚡🔥",
-                    )
-                    self.sms_sender.send_msg(
-                        contact,
-                        f"Psst, {name}... feeling adventurous? You can control my fate from afar! Reply '1' for a tickle or '2' for a burn—like a dramatic fireworks show on my leaves. Which thrill will you pick? Reply now! ⚡1 or 🔥2?",
-                    )
+
+                    for i in range(len(text :=
+                                       self.sms_sender.template["initial_text"][
+                                           "current"])):
+                        self.sms_sender.send_msg(text[i])
+
                     sms_dialog.destroy()
             else:
-                error_label.config(text="Please check the box and provide all details.")
+                error_label.config(
+                    text="Please check the box and provide all details.")
 
         # Create Save button
         save_button = tk.Button(sms_dialog, text="Save", command=send_info)
         save_button.grid(row=4, column=0, padx=10, pady=10)
 
         # Create Cancel button
-        cancel_button = tk.Button(sms_dialog, text="Cancel", command=sms_dialog.destroy)
+        cancel_button = tk.Button(sms_dialog, text="Cancel",
+                                  command=sms_dialog.destroy)
         cancel_button.grid(row=4, column=1, padx=10, pady=10)
 
-        image = tk.PhotoImage(file=BG_PATH)  # Change to the correct path to your image
+        image = tk.PhotoImage(
+            file=BG_PATH)  # Change to the correct path to your image
         image_label = tk.Label(sms_dialog, image=image)
         image_label.grid(
             row=5, column=0, columnspan=2, padx=2, pady=10
@@ -396,7 +401,8 @@ class CameraApp(tk.Tk):
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         current_label = tk.Label(
-            content_frame, text=f"Current Exposure: {self.camera.get_exposure():,}s"
+            content_frame,
+            text=f"Current Exposure: {self.camera.get_exposure():,}s"
         )
         current_label.pack(pady=(0, 10))
 
@@ -414,7 +420,8 @@ class CameraApp(tk.Tk):
         tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
             side="left", padx=5
         )
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy, width=10).pack(
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(
             side="left", padx=5
         )
 
@@ -422,8 +429,10 @@ class CameraApp(tk.Tk):
 
         # Center the dialog on the main window
         dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                    dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                    dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
     def show_fps_dialog(self):
@@ -467,7 +476,8 @@ class CameraApp(tk.Tk):
         tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
             side="left", padx=5
         )
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy, width=10).pack(
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(
             side="left", padx=5
         )
 
@@ -475,13 +485,16 @@ class CameraApp(tk.Tk):
 
         # Center the dialog on the main window
         dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                    dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                    dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
     def save_graph(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        file_name = Path(__file__).parent.parent / "saves" / f"graph_{timestamp}.png"
+        file_name = Path(
+            __file__).parent.parent / "saves" / f"graph_{timestamp}.png"
         file_name.parent.mkdir(parents=True, exist_ok=True)
         self.histogram.fig.savefig(file_name)
 
@@ -496,7 +509,8 @@ class CameraApp(tk.Tk):
         # Draw rotating arc
         # TODO: Bad loading icon
         self.loading_canvas.create_arc(
-            5, 5, 45, 45, start=self.angle, extent=300, fill="", outline="blue", width=2
+            5, 5, 45, 45, start=self.angle, extent=300, fill="", outline="blue",
+            width=2
         )
 
         self.angle = (self.angle - 10) % 360
@@ -507,17 +521,20 @@ class CameraApp(tk.Tk):
 
         def on_frame_configure(_):
             """Reset the scroll region to encompass the inner frame"""
-            self.button_canvas.configure(scrollregion=self.button_canvas.bbox("all"))
+            self.button_canvas.configure(
+                scrollregion=self.button_canvas.bbox("all"))
 
         def on_canvas_configure(event):
             """When canvas is resized, resize the inner frame to match"""
             min_width = self.button_frame.winfo_reqwidth()
             if event.width < min_width:
                 # Canvas is smaller than total button width, so expand canvas to fit all content
-                self.button_canvas.itemconfig("self.button_frame", width=min_width)
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=min_width)
             else:
                 # Canvas is larger than needed, so shrink canvas to fit window
-                self.button_canvas.itemconfig("self.button_frame", width=event.width)
+                self.button_canvas.itemconfig("self.button_frame",
+                                              width=event.width)
 
         # # Capture Button
         # self.capture_button = tk.Button(self.button_frame, text="Capture Image",
@@ -591,13 +608,45 @@ class CameraApp(tk.Tk):
 
         # Close Button
         self.quit_button = tk.Button(
-            self.button_frame, text="Exit", command=self.quit, font=("Arial", 16)
+            self.button_frame, text="Exit", command=self.quit,
+            font=("Arial", 16)
         )
         self.quit_button.pack(side="left", padx=20, pady=5)
 
         # Bind events to handle canvas resizing
         self.button_frame.bind("<Configure>", on_frame_configure)
         self.button_canvas.bind("<Configure>", on_canvas_configure)
+
+    def _execute_trigger(self):
+        """
+        Detects new messages received from the phone, and executes the
+        corresponding function.
+        """
+        # self._show_serial_port_dialog()
+        new_msg = self.sms_sender.new_msgs.get()
+        print("Message received:", new_msg)
+
+        try:
+            # I just found out python has pattern matching!!!!!
+            match new_msg:
+                case "current injection" | "1":
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["trigger"])
+                    self.trigger.injection(self.current_injection_port)
+                case "burn" | "2":
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["burn"])
+                    self.trigger.burn(self.burn_port)
+                case "stop":
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["stop"])
+                    self.stop_analysis()
+                case _:
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["else"])
+                    raise ValueError("Not supported")
+        except Exception as e:
+            print("An error occurred while running external script:", e)
 
     @threaded
     def _init_camera_thread(self):
@@ -609,7 +658,7 @@ class CameraApp(tk.Tk):
         self.threads.append \
             (threading.Thread(target=self.sms_sender.read_msg).start())
         print("Message observer started")
-        self._msg_observer()
+        self._poll_messages()
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -627,53 +676,32 @@ class CameraApp(tk.Tk):
         get_path(watermark_path)
 
     @threaded
-    def _msg_observer(self):
-        """
-        Detects new messages received from the phone, and executes the
-        corresponding function.
-        """
-        # self._show_serial_port_dialog()
-        while True:
-            self.sms_sender.new_msg_event.wait()
-            new_msg = self.sms_sender.new_msgs.get()
-            print("Message received:", new_msg)
-
-            try:
-                # I just found out python has pattern matching!!!!!
-                match new_msg:
-                    case "current injection" | "1":
-                        self.trigger.injection(self.current_injection_port)
-                    # case "1":
-                    #     self.trigger.injection(self.current_injection_port)
-                    case "burn" | "2":
-                        self.trigger.burn(self.burn_port)
-                    # case "2":
-                    #     self.trigger.burn(self.burn_port)
-                    case "stop":
-                        self.stop_analysis()
-                    case _:
-                        raise ValueError("Not supported")
-            except Exception as e:
-                print("An error occurred while running external script:", e)
-            finally:
-                self.sms_sender.new_msg_event.clear()
-
-    @threaded
     def _poll_messages(self):
         """Periodically refresh chatbox with updated message history."""
-        try:
-            if self.sms_sender and self.sms_sender.phone:
-                msgs = self.sms_sender.get_msg_history(self.sms_sender.phone)
-                # Only update if there’s new content
-                if msgs != getattr(self, "_last_msg_history", []):  
-                    self._last_msg_history = msgs
-                    self._refresh_chatbox(msgs)
+        print("[poll_messages]: process spawned")
+        while True:
+            print("[poll_messages]: waiting")
+            self.sms_sender.msg_changed_event.wait()
+            self.sms_sender.msg_changed_event.clear()
+            print("[poll_messages]: finished waiting")
 
-        except Exception as e:
-            print("Error polling messages:", e)
+            try:
+                if self.sms_sender.new_msg_event.is_set():
+                    self.sms_sender.new_msg_event.clear()
+                    self._execute_trigger()
 
-        # Schedule again in 3.5 seconds
-        self.after(3500, self._poll_messages)
+                if self.sms_sender and self.sms_sender.phone:
+                    msgs = self.sms_sender.get_msg_history(
+                        self.sms_sender.phone)
+
+                    # Only update if there’s new content
+                    # UPDATE: added `wait` above. This checks for correct phone number
+                    if msgs != getattr(self, "_last_msg_history", []):
+                        self._last_msg_history = msgs
+                        self._refresh_chatbox(msgs)
+
+            except Exception as e:
+                print("Error polling messages:", e)
 
     def _refresh_chatbox(self, msgs):
         """Replace chatbox content with current message history."""
@@ -681,8 +709,10 @@ class CameraApp(tk.Tk):
         self.chatbox.delete("1.0", "end")
 
         for m in msgs:
-            sender = "You" if m["type"] == "sent" else self.sms_sender.name or "Contact"
-            ts = time.strftime("%H:%M:%S", time.localtime(m["timestamp"] / 1000))
+            sender = "You" if m[
+                                  "type"] == "sent" else self.sms_sender.name or "Contact"
+            ts = time.strftime("%H:%M:%S",
+                               time.localtime(m["timestamp"] / 1000))
             self.chatbox.insert("end", f"[{ts}] {sender}: {m['body']}\n")
 
         self.chatbox.configure(state="disabled")
@@ -736,18 +766,22 @@ class CameraApp(tk.Tk):
             )
             self.webcam_canvas = tk.Canvas(
                 right_frame, width=width, height=webcam_height)
-            self.webcam_canvas.pack(side="top", fill="both", expand=True, pady=(5, 10))
+            self.webcam_canvas.pack(side="top", fill="both", expand=True,
+                                    pady=(5, 10))
 
             # --- Bottom: Histogram ---
             # --- Chatbox ---
             chat_frame = tk.Frame(right_frame, bg="white", height=200)
             chat_frame.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
 
-            chat_label = tk.Label(chat_frame, text="Message History", font=("Arial", 14, "bold"), bg="white")
+            chat_label = tk.Label(chat_frame, text="Message History",
+                                  font=("Arial", 14, "bold"), bg="white")
             chat_label.pack(anchor="w")
 
             # ScrolledText for chat messages
-            self.chatbox = ScrolledText(chat_frame, wrap="word", height=15, state="disabled", font=("Segoe UI Emoji", 12))
+            self.chatbox = ScrolledText(chat_frame, wrap="word", height=15,
+                                        state="disabled",
+                                        font=("Segoe UI Emoji", 12))
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
             # if self.show_graph:
             #     hist_frame = tk.Frame(right_frame)
@@ -772,7 +806,8 @@ class CameraApp(tk.Tk):
 
         self.button_frame = tk.Frame(self.button_canvas)
         self.button_canvas.create_window(
-            (0, 0), window=self.button_frame, anchor="nw", tags="self.button_frame"
+            (0, 0), window=self.button_frame, anchor="nw",
+            tags="self.button_frame"
         )
         h_scrollbar.config(command=self.button_canvas.xview)
 
@@ -865,15 +900,21 @@ class CameraApp(tk.Tk):
     #     y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
     #     dialog.geometry(f"+{x}+{y}")
 
-    def _process_frame(self, frame):
-        """Overlay the watermark on the frame."""
+    def _process_frame(self, frame, text):
+        """ Add text to frame """
+        # """Overlay the watermark on the frame."""
         # Convert the frame to RGB (from BGR)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # Convert frame to a PIL image
         pil_image = Image.fromarray(frame_rgb)
 
-        # Overlay watermark at bottom right corner (can change position)
+        # Add text
+        font = ImageFont.truetype("arial.ttf", size=40)
+        ImageDraw.Draw(pil_image).text((50, 50), text, font=font,
+                                       fill=(255, 255, 255))
+
+        # # Overlay watermark at bottom right corner (can change position)
         # watermark_width, watermark_height = self.watermark.size
         # padding = 10
         # pil_image.paste(
