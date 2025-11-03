@@ -97,8 +97,14 @@ class CameraApp(tk.Tk):
         # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
 
         self.trigger = Trigger(pre_trigger_func=self.start_analysis)
+
         # Initialize camera in separate thread
-        self.camera = Camera()
+        try:
+            self.camera = Camera()
+        except Exception as e:
+            self.camera = None
+            print(f"Error loading camera: {e}")
+
         # Initialize camera/UI setup on the main thread
         self._init_camera_thread()
         self._last_msg_history = []
@@ -117,38 +123,47 @@ class CameraApp(tk.Tk):
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
         # === Main camera (self.camera) ===
-        if hasattr(self, "camera") and self.camera:
-            frame = self.camera.get_frame()
-            if frame is not None:
-                # if hasattr(self, 'capture_task') and self.capture_task is not None:
-                # self.capture_task.set_frame(frame)
-                # self.analyzer.paint_square(frame)
-                if self.camera.is_recording():
-                    self.camera.write_video_frame()
+        if hasattr(self, "camera"):
+            if self.camera:
+                frame = self.camera.get_frame()
+                if frame is not None:
+                    # if hasattr(self, 'capture_task') and self.capture_task is not None:
+                    # self.capture_task.set_frame(frame)
+                    # self.analyzer.paint_square(frame)
+                    if self.camera.is_recording():
+                        self.camera.write_video_frame()
 
-                pil_image = self._process_frame(frame)
+                    pil_image = self._process_frame(frame)
 
-                # Resize to fit canvas
-                canvas_width = self.canvas.winfo_width()
-                canvas_height = self.canvas.winfo_height()
-                pil_image = pil_image.copy()
-                pil_image.thumbnail(
-                    (canvas_width, canvas_height), Image.Resampling.LANCZOS
-                )
-                self.imgtk = ImageTk.PhotoImage(image=pil_image)
-                self.canvas.delete("all")
+                    # Resize to fit canvas
+                    canvas_width = self.canvas.winfo_width()
+                    canvas_height = self.canvas.winfo_height()
+                    pil_image = pil_image.copy()
+                    pil_image.thumbnail(
+                        (canvas_width, canvas_height), Image.Resampling.LANCZOS
+                    )
+                    self.imgtk = ImageTk.PhotoImage(image=pil_image)
+                    self.canvas.delete("all")
 
-                x = (canvas_width - pil_image.width) // 2
-                y = (canvas_height - pil_image.height) // 2
-                self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
+                    x = (canvas_width - pil_image.width) // 2
+                    y = (canvas_height - pil_image.height) // 2
+                    self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
-                # Update histogram if frame exists
-                # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
-                #     0)
-                # self.loggernet_canvas.draw_idle()
-                if self.show_graph:
-                    self.histogram.update(frame)
-                    self.histogram_canvas.draw_idle()
+                    # Update histogram if frame exists
+                    # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
+                    #     0)
+                    # self.loggernet_canvas.draw_idle()
+
+                else:
+                    self.canvas.delete("all")
+                    self.imgtk = None
+
+            if self.show_graph:
+                self.histogram.update(frame)
+                self.canvas.create_rectangle(0, 0, self.canvas.winfo_width(),
+                                             self.canvas.winfo_height(),
+                                             fill="black", outline="")
+                self.histogram_canvas.draw_idle()
 
         # === OpenCV webcam feed (self.cap) ===
         if hasattr(self, "cap") and self.cap.isOpened():
@@ -473,7 +488,7 @@ class CameraApp(tk.Tk):
     ## setup helpers ##
     def _animate_loading(self):
         """Animate the loading circle"""
-        if hasattr(self, "camera") and self.camera:
+        if hasattr(self, "camera"):
             return
 
         self.loading_canvas.delete("all")
@@ -508,6 +523,8 @@ class CameraApp(tk.Tk):
         # self.capture_button = tk.Button(self.button_frame, text="Capture Image",
         #                                 command=self.capture,font=("Arial", 16))
         # self.capture_button.pack(side="left", padx=20)
+
+        # TODO: Hide buttons if camera not detected
 
         # Start Recording Button
         self.start_record_button = tk.Button(

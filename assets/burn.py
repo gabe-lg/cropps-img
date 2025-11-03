@@ -1,6 +1,9 @@
 import time
 
-import serial
+try:
+    import serial
+except ModuleNotFoundError:
+    pass
 
 BAUD_RATE = 9600
 

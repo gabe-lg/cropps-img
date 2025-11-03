@@ -3,7 +3,10 @@ import datetime
 import sys
 import time
 
-import serial
+try:
+    import serial
+except ModuleNotFoundError:
+    pass
 
 # Configuration (adjust as needed)
 BAUD_RATE = 9600
