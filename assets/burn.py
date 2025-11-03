@@ -3,7 +3,7 @@ import time
 try:
     import serial
 except ModuleNotFoundError:
-    pass
+    print("Module serial not found.")
 
 BAUD_RATE = 9600
 

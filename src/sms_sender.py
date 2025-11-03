@@ -133,27 +133,30 @@ class SmsSender:
                 '--projection', 'body'
             ]
 
-            os.chdir(self.dir)
-            output = subprocess.run(cmd, check=True, capture_output=True,
-                                    text=True).stdout
-            orig = [r.partition("body=")[2].strip() for r in
-                    self.sms_msgs.splitlines() if "body=" in r]
-            new = [r.partition("body=")[2].strip() for r in
-                   output.splitlines() if "body=" in r]
+            try:
+                os.chdir(self.dir)
+                output = subprocess.run(cmd, check=True, capture_output=True,
+                                        text=True).stdout
+                orig = [r.partition("body=")[2].strip() for r in
+                        self.sms_msgs.splitlines() if "body=" in r]
+                new = [r.partition("body=")[2].strip() for r in
+                       output.splitlines() if "body=" in r]
 
-            diff = difflib.unified_diff(orig, new, fromfile='original',
-                                        tofile='new', lineterm='')
+                diff = difflib.unified_diff(orig, new, fromfile='original',
+                                            tofile='new', lineterm='')
 
-            for line in diff:
-                if line.startswith('+') and not line.startswith('+++'):
-                    self.new_msgs.put(line[1:].lower().strip())
-                    self.new_msg_event.set()
-                    self.msg_changed_event.set()
+                for line in diff:
+                    if line.startswith('+') and not line.startswith('+++'):
+                        self.new_msgs.put(line[1:].lower().strip())
+                        self.new_msg_event.set()
+                        self.msg_changed_event.set()
 
-            self.sms_msgs = output
-
-            # 2 seconds ok?
-            time.sleep(2)
+                self.sms_msgs = output
+            except subprocess.CalledProcessError as e:
+                print(f"An error occurred: {e}")
+            finally:
+                # 2 seconds ok?
+                time.sleep(2)
 
     def get_msg_history(self, phone: str):
         """

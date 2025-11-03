@@ -108,4 +108,9 @@ The buttons on the GUI have the following functionality:
   recieve texts when the plant has been wounded
 - **Exit**: Closes the GUI and terminates run of main.py
 
+## Icons used
+
+- <a href="https://www.flaticon.com/free-icons/iphone" title="iphone icons">Iphone icons created by lalawidi -
+  Flaticon</a>
+
 

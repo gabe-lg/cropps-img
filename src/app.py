@@ -8,6 +8,7 @@ from tkinter.scrolledtext import ScrolledText
 
 import cv2
 from instrumental import Q_
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Ensure project root is on sys.path when running this file directly
 if __name__ == "__main__" or __package__ is None:
@@ -54,8 +55,6 @@ class CameraApp(tk.Tk):
         self.state("zoomed")
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
-        # TODO: add button that toggles whether data is displayed in camera feed
-        self.show_logger = True
         self.threads = []
         self._last_msg_history = []
 
@@ -93,10 +92,11 @@ class CameraApp(tk.Tk):
         self.current_injection_port = "COM3"
         self.burn_port = "COM4"
 
+        # Toggle graphs and webcam feed
+        # TODO: add button that toggles whether data is displayed in camera feed
         self.show_graph = False
         # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
-
-        self.trigger = Trigger(pre_trigger_func=self.start_analysis)
+        self.show_webcam = False
 
         # Initialize camera in separate thread
         try:
@@ -108,15 +108,15 @@ class CameraApp(tk.Tk):
         self._init_camera_thread()
 
     def quit(self):
-        # self.sms_sender.send_debug_msg("Exiting...")
+        print("Exiting...")
         # self.stop_analysis()
-        for t in self.threads:
-            try:
-                t.join()
-            except:
-                continue
         self.camera = None
+
+        self.after_cancel(self.update_pid)
         self.destroy()
+
+        # pls pls pls don't delete this line again
+        super().quit()
 
     ## main update function ##
     def update_camera_feed(self):
@@ -187,10 +187,10 @@ class CameraApp(tk.Tk):
                                                 image=self.imgtk_web)
 
         # Repeat this method after a short delay
-        if self.camera:
-            self.after(1000 // self.camera.app_fps, self.update_camera_feed)
-        else:
-            self.after(10, self.update_camera_feed)
+        self.update_pid = self.after(1000 // self.camera.app_fps,
+                                     self.update_camera_feed) \
+            if self.camera \
+            else self.after(10, self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -430,9 +430,9 @@ class CameraApp(tk.Tk):
         # Center the dialog on the main window
         dialog.update_idletasks()
         x = self.winfo_x() + (self.winfo_width() // 2) - (
-                    dialog.winfo_width() // 2)
+                dialog.winfo_width() // 2)
         y = self.winfo_y() + (self.winfo_height() // 2) - (
-                    dialog.winfo_height() // 2)
+                dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
     def show_fps_dialog(self):
@@ -486,9 +486,9 @@ class CameraApp(tk.Tk):
         # Center the dialog on the main window
         dialog.update_idletasks()
         x = self.winfo_x() + (self.winfo_width() // 2) - (
-                    dialog.winfo_width() // 2)
+                dialog.winfo_width() // 2)
         y = self.winfo_y() + (self.winfo_height() // 2) - (
-                    dialog.winfo_height() // 2)
+                dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
     def save_graph(self):
@@ -656,7 +656,8 @@ class CameraApp(tk.Tk):
     @threaded
     def _init_sms_receiver(self):
         self.threads.append \
-            (threading.Thread(target=self.sms_sender.read_msg).start())
+            (threading.Thread(target=self.sms_sender.read_msg,
+                              daemon=True).start())
         print("Message observer started")
         self._poll_messages()
 
@@ -736,28 +737,28 @@ class CameraApp(tk.Tk):
         self.canvas.pack(fill="both", expand=True)
 
         # --- Right side: Logo + webcam + histogram ---
-        if self.show_logger:
-            right_frame = tk.Frame(main_frame, width=width, height=height)
-            right_frame.pack(side="left", fill="both", expand=True)
-            right_frame.pack_propagate(False)
+        right_frame = tk.Frame(main_frame, width=width, height=height)
+        right_frame.pack(side="left", fill="both", expand=True)
+        right_frame.pack_propagate(False)
 
-            # --- Top: Logo ---
-            try:
-                logo_img = self.watermark
-                # logo_img = logo_img.resize((200, 100))  # adjust as needed
-                self.logo_photo = ImageTk.PhotoImage(logo_img)
-                logo_label = tk.Label(right_frame, image=self.logo_photo)
-                logo_label.pack(side="top", anchor="n", pady=(10, 5))
-            except Exception as e:
-                print(f"Error loading logo: {e}")
-                logo_label = tk.Label(
-                    right_frame,
-                    text="CROPPS",
-                    font=("Arial", 24, "bold"),
-                    fg="#333"
-                )
-                logo_label.pack(side="top", anchor="n", pady=(10, 5))
+        # --- Top: Logo ---
+        try:
+            logo_img = self.watermark
+            # logo_img = logo_img.resize((200, 100))  # adjust as needed
+            self.logo_photo = ImageTk.PhotoImage(logo_img)
+            logo_label = tk.Label(right_frame, image=self.logo_photo)
+            logo_label.pack(side="top", anchor="n", pady=(10, 5))
+        except Exception as e:
+            print(f"Error loading logo: {e}")
+            logo_label = tk.Label(
+                right_frame,
+                text="CROPPS",
+                font=("Arial", 24, "bold"),
+                fg="#333"
+            )
+            logo_label.pack(side="top", anchor="n", pady=(10, 5))
 
+        if self.show_webcam:
             # --- Middle: Webcam canvas ---
             webcam_height = (
                 self.winfo_screenheight() / 2.5
@@ -769,27 +770,45 @@ class CameraApp(tk.Tk):
             self.webcam_canvas.pack(side="top", fill="both", expand=True,
                                     pady=(5, 10))
 
-            # --- Bottom: Histogram ---
-            # --- Chatbox ---
-            chat_frame = tk.Frame(right_frame, bg="white", height=200)
-            chat_frame.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+        if self.show_graph:
+            hist_frame = tk.Frame(right_frame)
+            hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
+            self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+                                                      master=hist_frame)
+            self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
 
+        # --- Bottom: Histogram ---
+        # --- Chatbox ---
+        chat_frame = tk.Frame(right_frame, bg="white", height=200)
+        chat_frame.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+
+        if self.show_graph:
+            # Regular chat box
             chat_label = tk.Label(chat_frame, text="Message History",
                                   font=("Arial", 14, "bold"), bg="white")
             chat_label.pack(anchor="w")
 
             # ScrolledText for chat messages
-            self.chatbox = ScrolledText(chat_frame, wrap="word", height=15,
+            self.chatbox = ScrolledText(chat_frame, wrap="word",
                                         state="disabled",
-                                        font=("Segoe UI Emoji", 12))
+                                        font=("Segoe UI Emoji", 40))
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
-            # if self.show_graph:
-            #     hist_frame = tk.Frame(right_frame)
-            #     hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
-            #     self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig, master=hist_frame)
-            #     self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
+        else:
+            canvas = tk.Canvas(chat_frame)
+            canvas.pack(fill="both", expand=True)
+            try:
+                img = tk.PhotoImage(file="assets/screen.png")
+                canvas.create_image(0, 0, anchor="nw", image=img)
+                canvas.img = img  # ugh garbage collection...
+            except Exception as e:
+                print(f"Error loading assets: {e}")
 
-        self.imgtk = None  # Keep a reference
+            # ScrolledText for chat messages
+            self.chatbox = ScrolledText(chat_frame, wrap="word",
+                                        state="disabled",
+                                        font=("Segoe UI Emoji", 40))
+            canvas.create_window(100, 100, anchor="nw", window=self.chatbox,
+                                 width=600, height=300)  # adjust position/size
 
     def _setup_scroll_frame(self):
         """Setup scroll frame for buttons"""
@@ -821,11 +840,16 @@ class CameraApp(tk.Tk):
         self.video_writer = None
         self.analyzing = False
         self.capture_task = None
-        self.cap = cv2.VideoCapture(0)
+
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
+        self.trigger = Trigger(pre_trigger_func=self.start_analysis)
+
         if self.show_graph:
             self.loggernet = src.loggernet.Loggernet()
+
+        if self.show_webcam:
+            self.cap = cv2.VideoCapture(0)
 
         # Setup UI components
         self._load_watermark(WATERMARK_PATH)
