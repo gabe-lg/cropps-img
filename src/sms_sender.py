@@ -152,8 +152,8 @@ class SmsSender:
                         self.msg_changed_event.set()
 
                 self.sms_msgs = output
-            except subprocess.CalledProcessError as e:
-                print(f"An error occurred: {e}")
+            except subprocess.CalledProcessError:
+                pass
             finally:
                 # 2 seconds ok?
                 time.sleep(2)

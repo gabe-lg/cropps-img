@@ -1,3 +1,4 @@
+import os
 import sys
 import threading
 import time
@@ -115,8 +116,7 @@ class CameraApp(tk.Tk):
         self.after_cancel(self.update_pid)
         self.destroy()
 
-        # pls pls pls don't delete this line again
-        super().quit()
+        os.kill(os.getpid(), 2)
 
     ## main update function ##
     def update_camera_feed(self):
@@ -696,7 +696,7 @@ class CameraApp(tk.Tk):
                         self.sms_sender.phone)
 
                     # Only update if there’s new content
-                    # UPDATE: added `wait` above. This checks for correct phone number
+                    # UPDATE v2.1.0: added `wait` above. This checks for correct phone number
                     if msgs != getattr(self, "_last_msg_history", []):
                         self._last_msg_history = msgs
                         self._refresh_chatbox(msgs)
@@ -710,8 +710,8 @@ class CameraApp(tk.Tk):
         self.chatbox.delete("1.0", "end")
 
         for m in msgs:
-            sender = "You" if m[
-                                  "type"] == "sent" else self.sms_sender.name or "Contact"
+            sender = "You" if m["type"] == "sent" \
+                else self.sms_sender.name or "Contact"
             ts = time.strftime("%H:%M:%S",
                                time.localtime(m["timestamp"] / 1000))
             self.chatbox.insert("end", f"[{ts}] {sender}: {m['body']}\n")
@@ -724,9 +724,8 @@ class CameraApp(tk.Tk):
         main_frame = tk.Frame(self)
         main_frame.pack(side="top", fill="both", expand=True)
 
-        # Dynamic sizing based on screen
         width = self.winfo_screenwidth() // 2
-        height = self.winfo_screenheight() // 1.5  # adjust if needed
+        height = self.winfo_screenheight() // 2
 
         # --- Left side: Camera feed ---
         camera_frame = tk.Frame(main_frame, width=width, height=height)
@@ -734,7 +733,7 @@ class CameraApp(tk.Tk):
         camera_frame.pack_propagate(False)
 
         self.canvas = tk.Canvas(camera_frame, width=width, height=height)
-        self.canvas.pack(fill="both", expand=True)
+        self.canvas.pack(side="bottom", fill="both", expand=True)
 
         # --- Right side: Logo + webcam + histogram ---
         right_frame = tk.Frame(main_frame, width=width, height=height)
@@ -742,12 +741,15 @@ class CameraApp(tk.Tk):
         right_frame.pack_propagate(False)
 
         # --- Top: Logo ---
+        # UPDATE v2.1.0: putting logo on the left
         try:
             logo_img = self.watermark
-            # logo_img = logo_img.resize((200, 100))  # adjust as needed
+            # logo_img = logo_img.resize((200, 100))
             self.logo_photo = ImageTk.PhotoImage(logo_img)
-            logo_label = tk.Label(right_frame, image=self.logo_photo)
-            logo_label.pack(side="top", anchor="n", pady=(10, 5))
+
+            logo_label = tk.Label(camera_frame, image=self.logo_photo)
+            # logo_label = tk.Label(right_frame, image=self.logo_photo)
+
         except Exception as e:
             print(f"Error loading logo: {e}")
             logo_label = tk.Label(
@@ -756,14 +758,25 @@ class CameraApp(tk.Tk):
                 font=("Arial", 24, "bold"),
                 fg="#333"
             )
-            logo_label.pack(side="top", anchor="n", pady=(10, 5))
+        finally:
+            logo_label.pack(side="bottom", anchor="nw", padx=50, pady=20)
+            # logo_label.pack(side="top", anchor="n", pady=(10, 5))
 
+        # --- Placeholder on the right ---
+        tk.Label(
+            right_frame,
+            text="",
+            font=("Arial", 24, "bold"),
+            fg="#333",
+            height=logo_label.winfo_height()
+        ).pack(side="top", anchor="nw", padx=50, pady=20)
+
+        # --- Middle: Webcam canvas ---
         if self.show_webcam:
-            # --- Middle: Webcam canvas ---
             webcam_height = (
                 self.winfo_screenheight() / 2.5
                 if self.show_graph
-                else height - 120  # adjust if logo present
+                else height - 120
             )
             self.webcam_canvas = tk.Canvas(
                 right_frame, width=width, height=webcam_height)
@@ -779,36 +792,54 @@ class CameraApp(tk.Tk):
 
         # --- Bottom: Histogram ---
         # --- Chatbox ---
-        chat_frame = tk.Frame(right_frame, bg="white", height=200)
-        chat_frame.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+        chat_frame = tk.Frame(right_frame, bg="white")
+        chat_frame.pack(side="top", fill="both", expand=True, padx=10,
+                        pady=(50, 0))
 
         if self.show_graph:
             # Regular chat box
             chat_label = tk.Label(chat_frame, text="Message History",
                                   font=("Arial", 14, "bold"), bg="white")
-            chat_label.pack(anchor="w")
+            chat_label.pack(anchor="n")
 
             # ScrolledText for chat messages
+            # font size for chatbox (magic number)
             self.chatbox = ScrolledText(chat_frame, wrap="word",
                                         state="disabled",
-                                        font=("Segoe UI Emoji", 40))
+                                        font=("Segoe UI Emoji", 20))
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
         else:
+            # Image of a screen
             canvas = tk.Canvas(chat_frame)
             canvas.pack(fill="both", expand=True)
             try:
-                img = tk.PhotoImage(file="assets/screen.png")
-                canvas.create_image(0, 0, anchor="nw", image=img)
-                canvas.img = img  # ugh garbage collection...
+                # height of screen (magic number)
+                height = int(self.winfo_height() * .7)
+
+                img = Image.open("assets/screen.png")
+                img = img.resize((int(height * img.width / img.height), height))
+                imgtk = ImageTk.PhotoImage(img)
+                canvas.img = imgtk  # ugh garbage collection...
+                canvas.create_image(self.winfo_width() // 4, 0, anchor="n",
+                                    image=imgtk)
+
+                # ScrolledText for chat messages
+                self.chatbox = ScrolledText(chat_frame, wrap="word",
+                                            state="disabled",
+                                            font=("Segoe UI Emoji", 20),
+                                            bg=self["bg"],
+                                            bd=0)
+
+                # dimensions of chatbox (magic numbers)
+                chatbox_width = imgtk.width() * .4
+                chatbox_height = imgtk.height() * .7
+
+                canvas.create_window(self.winfo_width() // 4,
+                                     imgtk.height() // 2, anchor="center",
+                                     window=self.chatbox, width=chatbox_width,
+                                     height=chatbox_height)
             except Exception as e:
                 print(f"Error loading assets: {e}")
-
-            # ScrolledText for chat messages
-            self.chatbox = ScrolledText(chat_frame, wrap="word",
-                                        state="disabled",
-                                        font=("Segoe UI Emoji", 40))
-            canvas.create_window(100, 100, anchor="nw", window=self.chatbox,
-                                 width=600, height=300)  # adjust position/size
 
     def _setup_scroll_frame(self):
         """Setup scroll frame for buttons"""
