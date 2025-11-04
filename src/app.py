@@ -99,6 +99,8 @@ class CameraApp(tk.Tk):
         # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
         self.show_webcam = False
 
+        self.hide_buttons = True
+
         # Initialize camera in separate thread
         try:
             self.camera = Camera()
@@ -209,8 +211,7 @@ class CameraApp(tk.Tk):
         file_name = self.camera.start_recording()
         self.start_record_button.config(state="disabled")
         tkinter.messagebox.showinfo(
-            "Recording", f"Video recording started. File: {file_name}"
-        )
+            "Recording", f"Video recording started. File: {file_name}")
 
     def stop_recording(self):
         """Stop recording video."""
@@ -227,22 +228,19 @@ class CameraApp(tk.Tk):
         assets_dir = project_root / "assets" / "captured_data"
 
         self.screenshot_directory = (
-                assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
-        )
+                assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}")
         self.screenshot_directory.mkdir(parents=True, exist_ok=True)
         self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
         self.capture_task.start()
         self.start_analysis_button.config(
-            text="Stop Analysis", fg="darkred", command=self.stop_analysis
-        )
+            text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
     def stop_analysis(self):
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
         self.start_analysis_button.config(
-            text="Start Analysis", fg="darkgreen", command=self.start_analysis
-        )
+            text="Start Analysis", fg="darkgreen", command=self.start_analysis)
 
         # variable to control remote/local analysis
         REMOTE = False
@@ -262,36 +260,25 @@ class CameraApp(tk.Tk):
                     result = remote_image_analysis(self.screenshot_directory)
                 else:
                     result = image_analysis(self.screenshot_directory)
-                self.after(
-                    0,
-                    lambda: tkinter.messagebox.showinfo(
-                        "Analysis Result", f"Detection result: {result}"
-                    ),
-                )
 
                 if self.sms_sender.phone:
-                    text_body = None
                     match result.lower().strip():
                         case "current injection":
                             self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["trigger"]
-                            )
+                                self.sms_sender.template["detected"]["trigger"])
                         case "burn":
                             self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["burn"]
-                            )
+                                self.sms_sender.template["detected"]["burn"])
                         case _:
                             self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["else"]
-                            )
+                                self.sms_sender.template["detected"]["else"])
+                else:
+                    self.after(0, lambda: tkinter.messagebox.showinfo(
+                        "Analysis Result", f"Detection result: {result}"))
 
             except Exception as e:
-                self.after(
-                    0,
-                    lambda: tkinter.messagebox.showerror(
-                        "Analysis Error", f"Failed to analyze images: {e}"
-                    ),
-                )
+                self.after(0, lambda: tkinter.messagebox.showerror(
+                    "Analysis Error", f"Failed to analyze images: {e}"))
             finally:
                 self.after(0, waiting_win.destroy)
 
@@ -371,13 +358,13 @@ class CameraApp(tk.Tk):
                                   command=sms_dialog.destroy)
         cancel_button.grid(row=4, column=1, padx=10, pady=10)
 
-        image = tk.PhotoImage(
-            file=BG_PATH)  # Change to the correct path to your image
+        sms_dialog.bind("<Return>", lambda _: send_info())
+        self.bind("<Escape>", lambda _: sms_dialog.destroy())
+
+        image = tk.PhotoImage(file=BG_PATH)
         image_label = tk.Label(sms_dialog, image=image)
-        image_label.grid(
-            row=5, column=0, columnspan=2, padx=2, pady=10
-        )  # Place the image under the buttons
-        image_label.image = image  # Keep a reference to the image to prevent it from being garbage collected
+        image_label.grid(row=5, column=0, columnspan=2, padx=2, pady=10)
+        image_label.image = image
 
         sms_dialog.mainloop()
 
@@ -626,21 +613,33 @@ class CameraApp(tk.Tk):
         new_msg = self.sms_sender.new_msgs.get()
         print("Message received:", new_msg)
 
+        analysis_timeout = 20
+
         try:
             # I just found out python has pattern matching!!!!!
             match new_msg:
-                case "current injection" | "1":
+                case "current injection" | '1':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["trigger"])
                     self.trigger.injection(self.current_injection_port)
-                case "burn" | "2":
+                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                case "burn" | '2':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["burn"])
                     self.trigger.burn(self.burn_port)
-                case "stop":
+                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                case "stop" | 's':
+                    if self.capture_task:
+                        self.sms_sender.send_msg(
+                            self.sms_sender.template["received"]["stop"]["ok"])
+                        self.stop_analysis()
+                    else:
+                        self.sms_sender.send_msg(self.sms_sender.template
+                                                 ["received"]["stop"]["error"])
+                case "quit" | 'q':
                     self.sms_sender.send_msg(
-                        self.sms_sender.template["received"]["stop"])
-                    self.stop_analysis()
+                        self.sms_sender.template["received"]["quit"])
+                    self.quit()
                 case _:
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["else"])
@@ -696,7 +695,8 @@ class CameraApp(tk.Tk):
                         self.sms_sender.phone)
 
                     # Only update if there’s new content
-                    # UPDATE v2.1.0: added `wait` above. This checks for correct phone number
+                    # UPDATE v2.1.0: added `wait` above.
+                    # This checks for correct phone number
                     if msgs != getattr(self, "_last_msg_history", []):
                         self._last_msg_history = msgs
                         self._refresh_chatbox(msgs)
@@ -726,6 +726,17 @@ class CameraApp(tk.Tk):
 
         width = self.winfo_screenwidth() // 2
         height = self.winfo_screenheight() // 2
+
+        # Bind 's' and 'q'
+        def stop(_):
+            if self.capture_task: self.stop_analysis()
+
+        self.bind('s', stop)
+        self.bind("<space>", stop)
+
+        self.bind('q', lambda _: self.quit())
+
+        self.bind("<Button-1>", lambda _: self.sms_info())
 
         # --- Left side: Camera feed ---
         camera_frame = tk.Frame(main_frame, width=width, height=height)
@@ -871,6 +882,7 @@ class CameraApp(tk.Tk):
         self.video_writer = None
         self.analyzing = False
         self.capture_task = None
+        self.imgtk = None
 
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
@@ -884,10 +896,12 @@ class CameraApp(tk.Tk):
 
         # Setup UI components
         self._load_watermark(WATERMARK_PATH)
-        self._setup_scroll_frame()
         self._setup_canvases()
-        self._create_widgets()
-        self.imgtk = None
+
+        # UPDATE v2.1.0: most button is hidden if `self.hide_buttons`
+        if not self.hide_buttons:
+            self._setup_scroll_frame()
+            self._create_widgets()
 
         # Start camera feed
         self._init_sms_receiver()

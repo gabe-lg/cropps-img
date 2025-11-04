@@ -12,14 +12,9 @@ def fix_encoding(data):
     """
     Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€”' → '—', 'ðŸ”¥' → '🔥').
     """
-
-    def decode_unicode_escape(match):
-        return bytes(match.group(0), 'utf-8').decode('unicode_escape')
-
-    # Match both \u and \U escape sequences (up to 8 hex digits)
-    result = re.sub(r'\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}',
-                    decode_unicode_escape, data)
-    return result
+    return re.sub(r'\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}',
+                  lambda match: bytes(match.group(0), 'utf-8')
+                  .decode('unicode_escape'), data)
 
 
 class SmsSender:
@@ -120,7 +115,6 @@ class SmsSender:
         prints a list of new messages received at every iteration.
         :param days_ago: Read messages received up to `days_ago` days ago.
         """
-
         # not_TODO: only read messages from the contact added in the box 
         # Handled by `get_msg_history`. This function is useful since it only
         #  execute one command per cycle. Also controls `new_msg_event`.
