@@ -82,6 +82,8 @@ class SmsSender:
 
     def send_msg(self, message, phone=None):
         if not phone: phone = self.phone
+        if not phone: return
+
         message = fix_encoding(message).replace("$NAME", self.name)
 
         command = [

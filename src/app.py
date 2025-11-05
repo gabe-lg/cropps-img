@@ -233,7 +233,9 @@ class CameraApp(tk.Tk):
         self.screenshot_directory.mkdir(parents=True, exist_ok=True)
         self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
         self.capture_task.start()
-        self.start_analysis_button.config(
+
+        if hasattr(self, "start_analysis_button"):
+            self.start_analysis_button.config(
             text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
         threading.Thread(target=self.capture_task.start_timer,
@@ -245,8 +247,10 @@ class CameraApp(tk.Tk):
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
-        self.start_analysis_button.config(
-            text="Start Analysis", fg="darkgreen", command=self.start_analysis)
+
+        if hasattr(self, "start_analysis_button"):
+            self.start_analysis_button.config(
+                text="Start Analysis", fg="darkgreen", command=self.start_analysis)
 
         # variable to control remote/local analysis
         REMOTE = False
@@ -807,8 +811,8 @@ class CameraApp(tk.Tk):
         tk.Label(
             header_frame,
             text="Hi, I’m Ari!",
-            font=("Comic Sans MS", 48, "bold"),
-            fg="#90ee90",
+            font=("Trebuchet MS", 48, "bold"),
+            fg="#000000",
             height=logo_label.winfo_height()).pack(side="right", anchor="sw",
                                                    pady=20)
 
