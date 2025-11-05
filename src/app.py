@@ -848,7 +848,7 @@ class CameraApp(tk.Tk):
         # --- Chatbox ---
         chat_frame = tk.Frame(right_frame, bg="white")
         chat_frame.pack(side="top", fill="both", expand=True, padx=10,
-                        pady=(50, 0))
+                        pady=(175, 0)) # add vspace above the phone screen
 
         if self.show_graph:
             # Regular chat box
