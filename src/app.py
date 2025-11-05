@@ -750,14 +750,19 @@ class CameraApp(tk.Tk):
         width = self.winfo_screenwidth() // 2
         height = self.winfo_screenheight() // 2
 
-        # Bind 's' and 'q'
+        # Keyboard bindings
         def stop(_):
             if self.capture_task: self.stop_analysis()
 
         self.bind('s', stop)
-        self.bind("<space>", stop)
 
         self.bind('q', lambda _: self.quit())
+
+        def display_all(_):
+            self.truncate_msgs = not self.truncate_msgs
+            self._refresh_chatbox(self._last_msg_history)
+
+        self.bind("<space>", display_all)
 
         if not self.show_buttons:
             self.bind("<Button-1>", lambda _: self.sms_info())
