@@ -13,9 +13,11 @@ DEVICE_INDEX = 0
 EXPOSURE_VALUE = 3000  # Feel free to tweak this (range: 100–60000)
 
 # the pictures from microscope are now saved in shared folder
-CAPTURE_INTERVAL = 0.5 # Israel - Maybe this one need to be change to capture with the same frame rate of the camera - Need to properly adjust to not be overdefine
+# capture with the same frame rate of the camera
+CAPTURE_INTERVAL = 0.5
 # CAPTURE_INTERVAL = 2
 FILE_LIMIT = 100000
+
 
 class StoppableThread(threading.Thread):
     """Thread class with a stop() method. The thread itself has to check
@@ -44,8 +46,9 @@ class CaptureTask(StoppableThread):
     def run(self):
         print("[DRIVER] Capture thread started.")
         while not self.stopped():
-            frame = self.camera.get_frame() # Israel - Insert into the loop to update the captured image
-            self.capture_image(frame)
+            if self.camera:
+                frame = self.camera.get_frame()
+                self.capture_image(frame)
             time.sleep(CAPTURE_INTERVAL)
         print("[DRIVER] Capture thread exiting...")
 
@@ -63,14 +66,14 @@ class CaptureTask(StoppableThread):
                     elif os.path.isdir(item_path):
                         shutil.rmtree(item_path)
 
-
     def capture_image(self, frame):
         if not os.path.exists(self.screenshot_directory):
             os.makedirs(self.screenshot_directory)
         self._delete_file()
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         counter_str = f"{self.image_counter:04d}"
-        filename = os.path.join(self.screenshot_directory, f"image_{counter_str}_{timestamp}.png")
+        filename = os.path.join(self.screenshot_directory,
+                                f"image_{counter_str}_{timestamp}.png")
         if frame is None or frame.size == 0:
             print(f"[ERROR] Invalid frame; skipping save to {filename}")
             return
@@ -81,7 +84,20 @@ class CaptureTask(StoppableThread):
         except Exception as e:
             print(f"[ERROR] Failed to save image {filename}: {e}")
 
-# run the code only if this script is executed directly 
+    def start_timer(self, dur, f):
+        """ Sleeps for `dur` seconds then calls `f` """
+        print(f"[DRIVER] timer spawned")
+        for t in range(dur):
+            time.sleep(1)
+            if self.stopped():
+                # account for delays when stopping manually
+                time.sleep(1)
+                break
+        print(f"[DRIVER] timer stopped")
+        f()
+
+
+# run the code only if this script is executed directly
 if __name__ == "__main__":
     task = CaptureTask()
     task.start()

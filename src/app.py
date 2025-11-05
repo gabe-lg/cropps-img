@@ -99,7 +99,8 @@ class CameraApp(tk.Tk):
         # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
         self.show_webcam = False
 
-        self.hide_buttons = True
+        self.show_buttons = False
+        self.truncate_msgs = True
 
         # Initialize camera in separate thread
         try:
@@ -235,7 +236,12 @@ class CameraApp(tk.Tk):
         self.start_analysis_button.config(
             text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
+        threading.Thread(target=self.capture_task.start_timer,
+                         args=(20, self.stop_analysis), daemon=True).start()
+
     def stop_analysis(self):
+        if not self.capture_task: return
+
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
@@ -339,12 +345,16 @@ class CameraApp(tk.Tk):
                 else:
                     self.sms_sender.set_info(name, contact)
 
-                    for i in range(len(text :=
-                                       self.sms_sender.template["initial_text"][
-                                           "current"])):
-                        self.sms_sender.send_msg(text[i])
-
-                    sms_dialog.destroy()
+                    try:
+                        for i in range(len(text :=
+                                        self.sms_sender.template["initial_text"][
+                                            "current"])):
+                            self.sms_sender.send_msg(text[i])
+                    except RuntimeError as e:
+                        tkinter.messagebox.showerror(
+                            "Error", f"Could not send message: {e}")
+                    finally:
+                        sms_dialog.destroy()
             else:
                 error_label.config(
                     text="Please check the box and provide all details.")
@@ -643,9 +653,9 @@ class CameraApp(tk.Tk):
                 case _:
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["else"])
-                    raise ValueError("Not supported")
         except Exception as e:
-            print("An error occurred while running external script:", e)
+            tkinter.messagebox.showerror("Error", 
+                f"An error occurred while running external script: {e}")
 
     @threaded
     def _init_camera_thread(self):
@@ -709,12 +719,25 @@ class CameraApp(tk.Tk):
         self.chatbox.configure(state="normal")
         self.chatbox.delete("1.0", "end")
 
+        # Message color
+        self.chatbox.tag_config('r', foreground="red")
+        self.chatbox.tag_config('b', foreground="blue")
+
         for m in msgs:
             sender = "You" if m["type"] == "sent" \
                 else self.sms_sender.name or "Contact"
+            tag = 'b' if m["type"] == "sent" else 'r'
             ts = time.strftime("%H:%M:%S",
                                time.localtime(m["timestamp"] / 1000))
-            self.chatbox.insert("end", f"[{ts}] {sender}: {m['body']}\n")
+
+            body = m["body"]
+
+            # truncate input (magic number)
+            max_length = 64
+
+            if self.truncate_msgs and len(body) > max_length:
+                body = body[:max_length] + "..."
+            self.chatbox.insert("end", f"[{ts}]\n{sender}:\n{body}\n\n", tag)
 
         self.chatbox.configure(state="disabled")
         self.chatbox.yview("end")
@@ -736,15 +759,19 @@ class CameraApp(tk.Tk):
 
         self.bind('q', lambda _: self.quit())
 
-        self.bind("<Button-1>", lambda _: self.sms_info())
+        if not self.show_buttons:
+            self.bind("<Button-1>", lambda _: self.sms_info())
 
         # --- Left side: Camera feed ---
         camera_frame = tk.Frame(main_frame, width=width, height=height)
         camera_frame.pack(side="left", fill="both", expand=True)
         camera_frame.pack_propagate(False)
 
+        header_frame = tk.Frame(camera_frame)
+        header_frame.pack(side="top", fill="x")
+
         self.canvas = tk.Canvas(camera_frame, width=width, height=height)
-        self.canvas.pack(side="bottom", fill="both", expand=True)
+        self.canvas.pack(side="top", fill="both", expand=True)
 
         # --- Right side: Logo + webcam + histogram ---
         right_frame = tk.Frame(main_frame, width=width, height=height)
@@ -758,7 +785,7 @@ class CameraApp(tk.Tk):
             # logo_img = logo_img.resize((200, 100))
             self.logo_photo = ImageTk.PhotoImage(logo_img)
 
-            logo_label = tk.Label(camera_frame, image=self.logo_photo)
+            logo_label = tk.Label(header_frame, image=self.logo_photo)
             # logo_label = tk.Label(right_frame, image=self.logo_photo)
 
         except Exception as e:
@@ -767,11 +794,18 @@ class CameraApp(tk.Tk):
                 right_frame,
                 text="CROPPS",
                 font=("Arial", 24, "bold"),
-                fg="#333"
-            )
+                fg="#333")
         finally:
-            logo_label.pack(side="bottom", anchor="nw", padx=50, pady=20)
+            logo_label.pack(side="left", anchor="nw", padx=50, pady=20)
             # logo_label.pack(side="top", anchor="n", pady=(10, 5))
+
+        tk.Label(
+            header_frame,
+            text="Hi, I’m Ari!",
+            font=("Comic Sans MS", 48, "bold"),
+            fg="#90ee90",
+            height=logo_label.winfo_height()).pack(side="right", anchor="sw",
+                                                   pady=20)
 
         # --- Placeholder on the right ---
         tk.Label(
@@ -899,7 +933,7 @@ class CameraApp(tk.Tk):
         self._setup_canvases()
 
         # UPDATE v2.1.0: most button is hidden if `self.hide_buttons`
-        if not self.hide_buttons:
+        if self.show_buttons:
             self._setup_scroll_frame()
             self._create_widgets()
 

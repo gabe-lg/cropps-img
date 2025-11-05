@@ -12,12 +12,12 @@
     "received": {
         "trigger": "Got it! Watch me to see what happens next!",
         "burn": "Got it! Watch me to see what happens next!",
-      "stop": {
-        "ok": "Analysis stopped prematurely. Processing results...",
-        "error": "Nothing to stop."
-      },
-      "quit": "Exiting...",
-      "else": "Available options:\\u000a1: \\u26A1\\u000a2: \\U0001F525\\u000as, stop: Stop analysis\\u000aq, quit: Exit main app"
+        "stop": {
+            "ok": "Analysis stopped prematurely. Processing results...",
+            "error": "Nothing to stop."
+        },
+        "quit": "Exiting...",
+        "else": "Available options:\\u000a1: \\u26A1\\u000a2: \\U0001F525\\u000as, stop: Stop analysis\\u000aq, quit: Exit main app"
     },
     "detected": {
         "trigger": "You gave me a tickle with that current. Jolt confirmed! \\u26A1",

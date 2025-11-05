@@ -83,7 +83,6 @@ class SmsSender:
     def send_msg(self, message, phone=None):
         if not phone: phone = self.phone
         message = fix_encoding(message).replace("$NAME", self.name)
-        print("[send_msg]: A message has been sent.")
 
         command = [
             "./adb",
@@ -104,8 +103,9 @@ class SmsSender:
             os.chdir(self.dir)
             subprocess.run(command, check=True)
             self.msg_changed_event.set()
+            print("[send_msg]: A message has been sent.")
         except subprocess.CalledProcessError as e:
-            print(f"An error occurred: {e}")
+            raise RuntimeError(e)
         finally:
             os.chdir(oldpwd)
 
