@@ -100,7 +100,7 @@ class CameraApp(tk.Tk):
         self.show_webcam = False
 
         self.show_buttons = False
-        self.truncate_msgs = True
+        self.truncate_msgs = False
 
         # Initialize camera in separate thread
         try:

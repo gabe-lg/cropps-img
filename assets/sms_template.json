@@ -6,7 +6,7 @@
         ],
         "current": [
             "Hi $NAME, it\\u2019s me, your plant Ari the Arabidopsis. These scientists have wired my leaves to send currents that range from a gentle tickle to a jolt. Please send a hilarious meme to recharge my spirits. Don\\u2019t leaf me in the dark! \\U0001F33F\\u26A1\\U0001F525",
-            "Psst, $NAME... you can control my response from your phone!\\u000a\\u000aReply 1 for a tickle or 2 for a jolt.\\u000a\\u000aWhich will you pick? Reply now!"
+            "Psst, $NAME... you can control my response from your phone! Reply 1 for a tickle or 2 for a jolt. Which will you pick? Reply now!"
         ]
     },
     "received": {
@@ -18,7 +18,7 @@
         },
         "quit": "Exiting...",
         "else_all": "Available options:\\u000a1: \\u26A1\\u000a2: \\U0001F525\\u000as, stop: Stop analysis\\u000aq, quit: Exit main app",
-        "else": "Available options:\\u000a1: \\u26A1\\u000a2: \\U0001F525\\u000as"
+        "else": "Available options:\\u000a1: \\u26A1\\u000a2: \\U0001F525\\u000a"
     },
     "detected": {
         "trigger": "You gave me a tickle! \\u26A1",
