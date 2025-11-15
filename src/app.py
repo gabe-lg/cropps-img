@@ -1,4 +1,5 @@
 import os
+import queue
 import sys
 import threading
 import time
@@ -26,13 +27,19 @@ from src.remote_image_analysis import remote_image_analysis
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import CaptureTask
-from src.camera import Camera
+
+DLL_PATH = r""
+sys.path.insert(0, DLL_PATH)
+from tkinter_camera_live_view import ImageAcquisitionThread, TLCameraSDK
+from windows_setup import configure_path
 
 # Paths
 WATERMARK_PATH = Path(
     __file__).parent.parent / "assets" / "cropps_watermark_dark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
 BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
+
+configure_path(DLL_PATH)
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
@@ -103,8 +110,10 @@ class CameraApp(tk.Tk):
         self.truncate_msgs = False
 
         # Initialize camera in separate thread
+        sdk = TLCameraSDK()
+        camera_list = sdk.discover_available_cameras()
         try:
-            self.camera = Camera()
+            self.camera = sdk.open_camera(camera_list[0])
         except Exception as e:
             self.camera = None
             print(f"Error loading camera: {e}")
@@ -115,6 +124,7 @@ class CameraApp(tk.Tk):
         print("Exiting...")
         # self.stop_analysis()
         self.camera = None
+        self.image_acquisition_thread.stop()
 
         self.after_cancel(self.update_pid)
         self.destroy()
@@ -128,34 +138,38 @@ class CameraApp(tk.Tk):
         if not hasattr(self, "camera"): return
 
         if self.camera:
-            frame = self.camera.get_frame()
-            if frame is not None:
-                # if hasattr(self, 'capture_task') and self.capture_task is not None:
-                # self.capture_task.set_frame(frame)
-                # self.analyzer.paint_square(frame)
-                if self.camera.is_recording():
-                    self.camera.write_video_frame()
+            # frame = self.camera.get_pending_frame_or_null()
+            # if frame is not None:
+            # if hasattr(self, 'capture_task') and self.capture_task is not None:
+            # self.capture_task.set_frame(frame)
+            # self.analyzer.paint_square(frame)
+            # if self.camera.is_recording():
+            #     self.camera.write_video_frame()
 
-                pil_image = self._process_frame(frame, "Scientific Camera")
+            # pil_image = self._process_frame(frame, "Scientific Camera")
 
-                # Resize to fit canvas
-                canvas_width = self.canvas.winfo_width()
-                canvas_height = self.canvas.winfo_height()
-                pil_image = pil_image.copy()
-                pil_image.thumbnail(
-                    (canvas_width, canvas_height), Image.Resampling.LANCZOS
-                )
-                self.imgtk = ImageTk.PhotoImage(image=pil_image)
-                self.canvas.delete("all")
+            try:
+                self.pil_image = self.image_acquisition_thread.get_output_queue().get_nowait()
+            except queue.Empty:
+                pass
 
-                x = (canvas_width - pil_image.width) // 2
-                y = (canvas_height - pil_image.height) // 2
-                self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
+            # Resize to fit canvas
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            self.pil_image = self.pil_image.copy().convert("L")
+            self.pil_image.thumbnail(
+                (canvas_width, canvas_height), Image.Resampling.LANCZOS)
+            self.imgtk = ImageTk.PhotoImage(image=self.pil_image)
+            self.canvas.delete("all")
 
-                # Update histogram if frame exists
-                # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
-                #     0)
-                # self.loggernet_canvas.draw_idle()
+            x = (canvas_width - self.pil_image.width) // 2
+            y = (canvas_height - self.pil_image.height) // 2
+            self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
+
+            # Update histogram if frame exists
+            # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
+            #     0)
+            # self.loggernet_canvas.draw_idle()
 
         if self.show_graph:
             self.histogram.update(frame)
@@ -190,10 +204,12 @@ class CameraApp(tk.Tk):
                                                 image=self.imgtk_web)
 
         # Repeat this method after a short delay
-        self.update_pid = self.after(1000 // self.camera.app_fps,
-                                     self.update_camera_feed) \
-            if self.camera \
-            else self.after(10, self.update_camera_feed)
+        # self.update_pid = self.after(1000 // self.camera.app_fps,
+        #                              self.update_camera_feed) \
+        #     if self.camera \
+        #     else self.after(10, self.update_camera_feed)
+
+        self.update_pid = self.after(10, self.update_camera_feed)
 
     ## main functions for buttons ##
     @threaded
@@ -236,7 +252,7 @@ class CameraApp(tk.Tk):
 
         if hasattr(self, "start_analysis_button"):
             self.start_analysis_button.config(
-            text="Stop Analysis", fg="darkred", command=self.stop_analysis)
+                text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
         threading.Thread(target=self.capture_task.start_timer,
                          args=(20, self.stop_analysis), daemon=True).start()
@@ -250,7 +266,8 @@ class CameraApp(tk.Tk):
 
         if hasattr(self, "start_analysis_button"):
             self.start_analysis_button.config(
-                text="Start Analysis", fg="darkgreen", command=self.start_analysis)
+                text="Start Analysis", fg="darkgreen",
+                command=self.start_analysis)
 
         # variable to control remote/local analysis
         REMOTE = False
@@ -351,8 +368,9 @@ class CameraApp(tk.Tk):
 
                     try:
                         for i in range(len(text :=
-                                        self.sms_sender.template["initial_text"][
-                                            "current"])):
+                                           self.sms_sender.template[
+                                               "initial_text"][
+                                               "current"])):
                             self.sms_sender.send_msg(text[i])
                     except RuntimeError as e:
                         tkinter.messagebox.showerror(
@@ -658,12 +676,21 @@ class CameraApp(tk.Tk):
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["else"])
         except Exception as e:
-            tkinter.messagebox.showerror("Error", 
-                f"An error occurred while running external script: {e}")
+            tkinter.messagebox.showerror("Error",
+                                         f"An error occurred while running external script: {e}")
 
     @threaded
     def _init_camera_thread(self):
         """Initialize camera in a separate thread"""
+        self.image_acquisition_thread = ImageAcquisitionThread(self.camera)
+        print("Setting camera parameters...")
+        self.camera.frames_per_trigger_zero_for_unlimited = 0
+        self.camera.arm(2)
+        self.camera.issue_software_trigger()
+
+        print("Starting image acquisition thread...")
+        self.image_acquisition_thread.start()
+
         self.after(0, self._setup_ui_after_camera)
 
     @threaded
@@ -848,7 +875,7 @@ class CameraApp(tk.Tk):
         # --- Chatbox ---
         chat_frame = tk.Frame(right_frame, bg="white")
         chat_frame.pack(side="top", fill="both", expand=True, padx=10,
-                        pady=(175, 0)) # add vspace above the phone screen
+                        pady=(175, 0))  # add vspace above the phone screen
 
         if self.show_graph:
             # Regular chat box
