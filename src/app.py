@@ -9,7 +9,7 @@ from pathlib import Path
 from tkinter.scrolledtext import ScrolledText
 
 import cv2
-from instrumental import Q_
+import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Ensure project root is on sys.path when running this file directly
@@ -106,14 +106,14 @@ class CameraApp(tk.Tk):
         # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
         self.show_webcam = False
 
-        self.show_buttons = False
+        self.show_buttons = True
         self.truncate_msgs = False
 
         # Initialize camera in separate thread
-        sdk = TLCameraSDK()
-        camera_list = sdk.discover_available_cameras()
+        self.sdk = TLCameraSDK()
+        camera_list = self.sdk.discover_available_cameras()
         try:
-            self.camera = sdk.open_camera(camera_list[0])
+            self.camera = self.sdk.open_camera(camera_list[0])
         except Exception as e:
             self.camera = None
             print(f"Error loading camera: {e}")
@@ -123,10 +123,10 @@ class CameraApp(tk.Tk):
     def quit(self):
         print("Exiting...")
         # self.stop_analysis()
-        self.camera = None
-        self.image_acquisition_thread.stop()
-
         self.after_cancel(self.update_pid)
+        self.image_acquisition_thread.stop()
+        self.camera.dispose()
+        self.sdk.dispose()
         self.destroy()
 
         os.kill(os.getpid(), 2)
@@ -402,12 +402,16 @@ class CameraApp(tk.Tk):
 
     def show_exposure_dialog(self):
         def apply():
-            exposure_value = Q_(float(exposure_entry.get()), "millisecond")
-            self.camera.set_exposure(exposure_value)
+            exposure_value = int(exposure_entry.get()) * 1000
+            # For old SDK:
+            # exposure_value = Q_(float(exposure_entry.get()), "millisecond")
+            self.camera.exposure_time_us = exposure_value
             dialog.destroy()
             (
                 tkinter.messagebox.showinfo(
-                    "Exposure", f"Exposure set to {self.camera.get_exposure()}s"
+                    "Exposure",
+                    "Exposure set to "
+                    f"{round(self.camera.exposure_time_us / 1000, 2)}ms"
                 )
             )
 
@@ -421,7 +425,7 @@ class CameraApp(tk.Tk):
 
         current_label = tk.Label(
             content_frame,
-            text=f"Current Exposure: {self.camera.get_exposure():,}s"
+            text=f"Current Exposure: {self.camera.exposure_time_us / 1000}ms"
         )
         current_label.pack(pady=(0, 10))
 
@@ -457,11 +461,11 @@ class CameraApp(tk.Tk):
     def show_fps_dialog(self):
         def apply():
             fps_value = fps_entry.get()
-            self.camera.set_fps(fps_value)
+            self.camera.data_rate = fps_value  # TODO
             dialog.destroy()
             (
                 tkinter.messagebox.showinfo(
-                    "Framerate", f"Framerate set to {self.camera.get_fps():,}"
+                    "Framerate", f"Framerate set to {self.camera.data_rate:,}"
                 )
             )
 
@@ -477,7 +481,7 @@ class CameraApp(tk.Tk):
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         current_label = tk.Label(
-            content_frame, text=f"Current Framerate: {self.camera.get_fps():,}"
+            content_frame, text=f"Current Framerate: {self.camera.data_rate:,}"
         )
         current_label.pack(pady=(0, 10))
 
@@ -598,6 +602,13 @@ class CameraApp(tk.Tk):
             font=("Arial", 16),
         )
         self.set_sms_button.pack(side="left", padx=20)
+
+        # Set exposure button
+        self.exposure_button = tk.Button(self.button_frame,
+                                         text="Exposure Settings",
+                                         command=self.show_exposure_dialog,
+                                         font=("Arial", 16))
+        self.exposure_button.pack(side="left", padx=10)
 
         # Triggers
         self.triggers_button = tk.Menubutton(
