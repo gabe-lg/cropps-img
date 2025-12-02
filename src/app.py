@@ -1,5 +1,4 @@
 import os
-import queue
 import sys
 import threading
 import time
@@ -9,7 +8,6 @@ from pathlib import Path
 from tkinter.scrolledtext import ScrolledText
 
 import cv2
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Ensure project root is on sys.path when running this file directly
@@ -21,17 +19,16 @@ if __name__ == "__main__" or __package__ is None:
 # import src.cutter_control
 import src.analyzer
 import src.loggernet
+from src.capture_task import CaptureTask
 from src.trigger import Trigger
 from src.image_analysis import image_analysis
 from src.remote_image_analysis import remote_image_analysis
-
 from PIL import Image, ImageDraw, ImageFont, ImageTk
-from src.capture_task import CaptureTask
 
 DLL_PATH = r""
 sys.path.insert(0, DLL_PATH)
-from tkinter_camera_live_view import ImageAcquisitionThread, TLCameraSDK
 from windows_setup import configure_path
+from lib.image_queue import ImageAcquisitionThread, TLCameraSDK
 
 # Paths
 WATERMARK_PATH = Path(
@@ -123,13 +120,15 @@ class CameraApp(tk.Tk):
     def quit(self):
         print("Exiting...")
         # self.stop_analysis()
-        self.after_cancel(self.update_pid)
-        self.image_acquisition_thread.stop()
-        self.camera.dispose()
-        self.sdk.dispose()
-        self.destroy()
-
-        os.kill(os.getpid(), 2)
+        try:
+            self.after_cancel(self.update_pid)
+            self.image_acquisition_thread.stop()
+            self.camera.dispose()
+            self.sdk.dispose()
+            self.destroy()
+            print("Exited successfully")
+        finally:
+            os.kill(os.getpid(), 2)
 
     ## main update function ##
     def update_camera_feed(self):
@@ -149,8 +148,9 @@ class CameraApp(tk.Tk):
             # pil_image = self._process_frame(frame, "Scientific Camera")
 
             try:
-                self.pil_image = self.image_acquisition_thread.get_output_queue().get_nowait()
-            except queue.Empty:
+                self.pil_image = self.image_acquisition_thread.get_output_queue().queue[-1]
+            except IndexError:
+                # queue is empty
                 pass
 
             # Resize to fit canvas
@@ -225,20 +225,36 @@ class CameraApp(tk.Tk):
 
     def start_recording(self):
         """Start recording video."""
-        file_name = self.camera.start_recording()
+        if self.recording:
+            tkinter.messagebox.showerror("Recording",
+                                        "Recording already started.")
+            return
+
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        folder_path = Path(
+            __file__).parent.parent / "saves" / f"recordings_{timestamp}"
+        folder_path.mkdir(parents=True)
+
         self.start_record_button.config(state="disabled")
+        self.image_acquisition_thread.image_dir = folder_path
+        self.image_acquisition_thread.start_stop_recording(True)
+        self.recording = True
+
         tkinter.messagebox.showinfo(
-            "Recording", f"Video recording started. File: {file_name}")
+            "Recording", f"Video recording started. Folder: {folder_path}")
 
     def stop_recording(self):
         """Stop recording video."""
-        if self.camera.is_recording():
-            self.camera.stop_recording()
-            self.start_record_button.config(state="normal")
-            tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
-        else:
-            tkinter.messagebox.showinfo("Recording",
+        if not self.recording:
+            tkinter.messagebox.showerror("Recording",
                                         "No video is currently recording.")
+            return
+
+        self.start_record_button.config(state="normal")
+        self.image_acquisition_thread.start_stop_recording(False)
+        self.recording = False
+
+        tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
 
     def start_analysis(self, prefix=None):
         project_root = Path(__file__).resolve().parent.parent
@@ -693,6 +709,10 @@ class CameraApp(tk.Tk):
     @threaded
     def _init_camera_thread(self):
         """Initialize camera in a separate thread"""
+        if not self.camera:
+            print("Camera not detected")
+            self.quit()
+
         self.image_acquisition_thread = ImageAcquisitionThread(self.camera)
         print("Setting camera parameters...")
         self.camera.frames_per_trigger_zero_for_unlimited = 0
