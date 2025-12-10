@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -25,12 +26,14 @@ from src.image_analysis import image_analysis
 from src.remote_image_analysis import remote_image_analysis
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-DLL_PATH = r""
+DLL_PATH = r"C:\Users\gabby\Downloads\dlls"
 sys.path.insert(0, DLL_PATH)
 from windows_setup import configure_path
 from lib.image_queue import ImageAcquisitionThread, TLCameraSDK
 
 # Paths
+ASSETS_PATH = Path(
+    __file__).parent.parent / "assets"
 WATERMARK_PATH = Path(
     __file__).parent.parent / "assets" / "cropps_watermark_dark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
@@ -148,7 +151,8 @@ class CameraApp(tk.Tk):
             # pil_image = self._process_frame(frame, "Scientific Camera")
 
             try:
-                self.pil_image = self.image_acquisition_thread.get_output_queue().queue[-1]
+                self.pil_image = \
+                    self.image_acquisition_thread.get_output_queue().queue[-1]
             except IndexError:
                 # queue is empty
                 pass
@@ -223,11 +227,14 @@ class CameraApp(tk.Tk):
         else:
             tkinter.messagebox.showerror("Capture", "Failed to capture image.")
 
-    def start_recording(self):
+    def start_stop_recording(self):
         """Start recording video."""
         if self.recording:
-            tkinter.messagebox.showerror("Recording",
-                                        "Recording already started.")
+            self.start_record_button.config(text="Start recording")
+            self.image_acquisition_thread.start_stop_recording(False)
+            self.recording = False
+
+            tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
             return
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -235,33 +242,22 @@ class CameraApp(tk.Tk):
             __file__).parent.parent / "saves" / f"recordings_{timestamp}"
         folder_path.mkdir(parents=True)
 
-        self.start_record_button.config(state="disabled")
+        self.start_record_button.config(text="Stop recording")
         self.image_acquisition_thread.image_dir = folder_path
         self.image_acquisition_thread.start_stop_recording(True)
         self.recording = True
 
-        tkinter.messagebox.showinfo(
-            "Recording", f"Video recording started. Folder: {folder_path}")
-
-    def stop_recording(self):
-        """Stop recording video."""
-        if not self.recording:
-            tkinter.messagebox.showerror("Recording",
-                                        "No video is currently recording.")
-            return
-
-        self.start_record_button.config(state="normal")
-        self.image_acquisition_thread.start_stop_recording(False)
-        self.recording = False
-
-        tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
+        print(f"Video recording started. Folder: {folder_path}")
+        return folder_path
 
     def start_analysis(self, prefix=None):
+        assert not self.recording
+
         project_root = Path(__file__).resolve().parent.parent
         assets_dir = project_root / "assets" / "captured_data"
 
-        self.screenshot_directory = (
-                assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}")
+        self.screenshot_directory = self.start_stop_recording()
+        # assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
         self.screenshot_directory.mkdir(parents=True, exist_ok=True)
         self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
         self.capture_task.start()
@@ -274,6 +270,9 @@ class CameraApp(tk.Tk):
                          args=(20, self.stop_analysis), daemon=True).start()
 
     def stop_analysis(self):
+        print(self.recording)
+        if not self.recording: return
+
         if not self.capture_task: return
 
         if self.capture_task.is_alive():
@@ -284,6 +283,8 @@ class CameraApp(tk.Tk):
             self.start_analysis_button.config(
                 text="Start Analysis", fg="darkgreen",
                 command=self.start_analysis)
+
+        self.start_stop_recording()
 
         # variable to control remote/local analysis
         REMOTE = False
@@ -302,6 +303,7 @@ class CameraApp(tk.Tk):
                 if REMOTE:
                     result = remote_image_analysis(self.screenshot_directory)
                 else:
+                    print(self.screenshot_directory)
                     result = image_analysis(self.screenshot_directory)
 
                 if self.sms_sender.phone:
@@ -319,7 +321,7 @@ class CameraApp(tk.Tk):
                     self.after(0, lambda: tkinter.messagebox.showinfo(
                         "Analysis Result", f"Detection result: {result}"))
 
-            except Exception as e:
+            except ZeroDivisionError as e:
                 self.after(0, lambda: tkinter.messagebox.showerror(
                     "Analysis Error", f"Failed to analyze images: {e}"))
             finally:
@@ -586,29 +588,29 @@ class CameraApp(tk.Tk):
         self.start_record_button = tk.Button(
             self.button_frame,
             text="Start Recording",
-            command=self.start_recording,
+            command=self.start_stop_recording,
             font=("Arial", 16),
         )
         self.start_record_button.pack(side="left", padx=20)
 
         # Stop Recording Button
-        self.stop_record_button = tk.Button(
-            self.button_frame,
-            text="Stop Recording",
-            command=self.stop_recording,
-            font=("Arial", 16),
-        )
-        self.stop_record_button.pack(side="left", padx=20)
+        # self.stop_record_button = tk.Button(
+        #     self.button_frame,
+        #     text="Stop Recording",
+        #     command=self.stop_recording,
+        #     font=("Arial", 16),
+        # )
+        # self.stop_record_button.pack(side="left", padx=20)
 
-        # Analysis buttons
-        self.start_analysis_button = tk.Button(
-            self.button_frame,
-            text="Start Analysis",
-            fg="darkgreen",
-            command=self.start_analysis,
-            font=("Arial", 16),
-        )
-        self.start_analysis_button.pack(side="left", padx=20)
+        # # Analysis buttons
+        # self.start_analysis_button = tk.Button(
+        #     self.button_frame,
+        #     text="Start Analysis",
+        #     fg="darkgreen",
+        #     command=self.start_analysis,
+        #     font=("Arial", 16),
+        # )
+        # self.start_analysis_button.pack(side="left", padx=20)
 
         # Set SMS information Button
         self.set_sms_button = tk.Button(
@@ -635,12 +637,22 @@ class CameraApp(tk.Tk):
 
         self.triggers_menu.add_command(
             label="Current Injection",
-            command=lambda: self.trigger.injection(self.current_injection_port),
+            command=lambda: self._execute_trigger('1'),
             font=("Arial", 16),
         )
         self.triggers_menu.add_command(
             label="Burn",
-            command=lambda: self.trigger.burn(self.burn_port),
+            command=lambda: self._execute_trigger('2'),
+            font=("Arial", 16),
+        )
+        self.triggers_menu.add_command(
+            label="Cut",
+            command=lambda: self._execute_trigger('3'),
+            font=("Arial", 16),
+        )
+        self.triggers_menu.add_command(
+            label="Settings...",
+            command=lambda: self._show_trigger_settings(),
             font=("Arial", 16),
         )
 
@@ -663,15 +675,17 @@ class CameraApp(tk.Tk):
         self.button_frame.bind("<Configure>", on_frame_configure)
         self.button_canvas.bind("<Configure>", on_canvas_configure)
 
-    def _execute_trigger(self):
+    def _execute_trigger(self, new_msg=None):
         """
         Detects new messages received from the phone, and executes the
         corresponding function.
         """
-        # self._show_serial_port_dialog()
-        new_msg = self.sms_sender.new_msgs.get()
-        print("Message received:", new_msg)
+        if not new_msg:
+            # self._show_serial_port_dialog()
+            new_msg = self.sms_sender.new_msgs.get()
 
+        print("Message received:", new_msg)
+        # Magic number here:
         analysis_timeout = 20
 
         try:
@@ -687,6 +701,7 @@ class CameraApp(tk.Tk):
                         self.sms_sender.template["received"]["burn"])
                     self.trigger.burn(self.burn_port)
                     self.after(analysis_timeout * 1000, self.stop_analysis)
+                # TODO: more cases here
                 case "stop" | 's':
                     if self.capture_task:
                         self.sms_sender.send_msg(
@@ -1008,67 +1023,101 @@ class CameraApp(tk.Tk):
         self._init_sms_receiver()
         self.update_camera_feed()
 
-    # def _show_serial_port_dialog(self):
-    #     def apply():
-    #         try:
-    #             self.current_injection_port = "COM" + str(
-    #                 int(current_entry.get().strip())
-    #             )
-    #             self.burn_port = "COM" + str(int(burn_entry.get().strip()))
+    def _show_trigger_settings(self):
+        def apply_trigger():
+            # try:
+            #     self.current_injection_port = "COM" + str(
+            #         int(current_entry.get().strip())
+            #     )
+            #     self.burn_port = "COM" + str(int(burn_entry.get().strip()))
+            #
+            #     dialog.destroy()
+            #     print(
+            #         f"Current Injection Port: {self.current_injection_port}\n"
+            #         f"Burn Port: {self.burn_port}"
+            #     )
+            # except ValueError:
+            #     error_label.config(text="Invalid Serial Port")
 
-    #             dialog.destroy()
-    #             print(
-    #                 f"Current Injection Port: {self.current_injection_port}\n"
-    #                 f"Burn Port: {self.burn_port}"
-    #             )
-    #         except ValueError:
-    #             error_label.config(text="Invalid Serial Port")
+            for name, entry in all_entries:
+                name = name.replace(' ', '_').replace(':', '').lower()
+                value = entry.get().strip()
+                setattr(self, name, value)
+                print(f"[INFO] Attribute \"{name}\" set to {value}")
 
-    #     dialog = tk.Toplevel(self)
-    #     dialog.title("Set Serial Ports")
-    #     dialog.geometry("400x200")
-    #     dialog.resizable(False, False)
+            dialog.destroy()
 
-    #     content_frame = tk.Frame(dialog)
-    #     content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        dialog = tk.Toplevel(self)
+        dialog.title("Set Serial Ports")
+        dialog.geometry("320x500")
+        dialog.resizable(False, False)
 
-    #     # ---- Current Injection Port Input ----
-    #     current_frame = tk.Frame(content_frame)
-    #     current_entry = tk.Entry(current_frame, width=25)
-    #     current_entry.pack(side="right", padx=2)
-    #     current_frame.pack(fill="x", pady=5)
-    #     tk.Label(current_frame, text="Current Injection Port: COM").pack(side="right")
+        # TODO: scrollbar is not bound to the whole window
 
-    #     # ---- Burn Port Input ----
-    #     burn_frame = tk.Frame(content_frame)
-    #     burn_entry = tk.Entry(burn_frame, width=25)
-    #     burn_entry.pack(side="right", padx=2)
-    #     burn_frame.pack(fill="x", pady=5)
-    #     tk.Label(burn_frame, text="Burn Port: COM").pack(side="right")
+        canvas = tk.Canvas(dialog)
+        scrollbar = tk.Scrollbar(dialog, orient="vertical",
+                                 command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-    #     # ---- Error Label ----
-    #     error_label = tk.Label(content_frame, text="", fg="red")
-    #     error_label.pack()
+        # Create a frame inside the canvas to contain the message
+        content_frame = tk.Frame(canvas)
+        canvas.create_window((10, 10), window=content_frame, anchor="nw")
 
-    #     # ---- Buttons ----
-    #     button_frame = tk.Frame(content_frame)
-    #     button_frame.pack(pady=10)
-    #     tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
-    #         side="left", padx=5
-    #     )
-    #     tk.Button(button_frame, text="Cancel", command=dialog.destroy, width=10).pack(
-    #         side="left", padx=5
-    #     )
+        # ---- Create entries ----
+        os.chdir(ASSETS_PATH)
+        with open("trigger_func.json") as f:
+            s = json.load(f)
 
-    #     # ---- Bind Enter Key ----
-    #     current_entry.bind("<Return>", lambda e: apply())
-    #     burn_entry.bind("<Return>", lambda e: apply())
+        all_entries = []
+        for key, setting in s.items():
+            tk.Label(content_frame, text=setting["title"]).pack()
 
-    #     # ---- Center the dialog ----
-    #     dialog.update_idletasks()
-    #     x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
-    #     y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
-    #     dialog.geometry(f"+{x}+{y}")
+            for i in setting["items"]:
+                frame = tk.Frame(content_frame)
+                entry = tk.Entry(frame, width=25)
+                entry.pack(side="right", padx=2)
+                entry.bind("<Return>", lambda _: apply_trigger())
+                frame.pack(fill="x", pady=5)
+                tk.Label(frame, text=i).pack(side="right")
+                all_entries.append((i, entry))
+
+            for i in setting["buttons"]:
+                # TODO: `key` is overwritten by the last item.
+                frame = tk.Frame(content_frame)
+                frame.pack(fill="x", pady=5)
+                tk.Button(frame, text="not implemented",
+                          command=lambda: self._execute_trigger(key),
+                          width=10).pack()
+
+        # ---- Error Label ----
+        error_label = tk.Label(content_frame, text="", fg="red")
+        error_label.pack()
+
+        # ---- Buttons ----
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(pady=10)
+        tk.Button(button_frame, text="Apply", command=apply_trigger,
+                  width=10).pack(side="left", padx=5)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Update the scrollable region of the canvas
+        content_frame.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
+
+        # tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+        #           width=10).pack(
+        #     side="left", padx=5
+        # )
+        #
+        # # ---- Center the dialog ----
+        # dialog.update_idletasks()
+        # x = self.winfo_x() + (self.winfo_width() // 2) - (
+        #         dialog.winfo_width() // 2)
+        # y = self.winfo_y() + (self.winfo_height() // 2) - (
+        #         dialog.winfo_height() // 2)
+        # dialog.geometry(f"+{x}+{y}")
 
     def _process_frame(self, frame, text):
         """ Add text to frame """

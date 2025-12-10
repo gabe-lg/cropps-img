@@ -1,0 +1,45 @@
+{
+  "0": {
+    "title": "Current Injection",
+    "items": [
+      "Current Injection Port: COM",
+      "Duration",
+      "Amplitude"
+    ],
+    "buttons": [
+      "Execute"
+    ]
+  },
+  "1": {
+    "title": "Burn",
+    "items": [
+      "Burn Port: COM"
+    ],
+    "buttons": [
+      "Execute"
+    ]
+  },
+  "2": {
+    "title": "Cutter",
+    "items": [
+    ],
+    "buttons": [
+      "Execute"
+    ]
+  },
+  "3": {
+    "title": "SMS",
+    "items": [
+    ],
+    "buttons": [
+      "Open dialog"
+    ]
+  },
+  "4": {
+    "title": "General",
+    "items": [
+      "Temperature"
+    ],
+    "buttons": []
+  }
+}

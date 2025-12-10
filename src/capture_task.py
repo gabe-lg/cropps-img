@@ -46,9 +46,9 @@ class CaptureTask(StoppableThread):
     def run(self):
         print("[DRIVER] Capture thread started.")
         while not self.stopped():
-            if self.camera:
-                frame = self.camera.get_frame()
-                self.capture_image(frame)
+            # if self.camera:
+            # frame = self.camera.get_frame()
+            # self.capture_image(frame)
             time.sleep(CAPTURE_INTERVAL)
         print("[DRIVER] Capture thread exiting...")
 
