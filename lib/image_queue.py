@@ -92,7 +92,6 @@ class ImageAcquisitionThread(threading.Thread):
             with self._queue_lock:
                 self._image_count = 0
         else:
-            print("Just stopped recording")
             self._last_image_queue = self._image_queue
             threading.Thread(target=self.save_images, args=(True,)).start()
 

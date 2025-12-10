@@ -29,26 +29,21 @@ from src.remote_image_analysis import remote_image_analysis
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 DLL_PATH = str(Path(__file__).parent.parent / "dlls")
-print(DLL_PATH)
 sys.path.insert(0, DLL_PATH)
 from windows_setup import configure_path
 from lib.image_queue import ImageAcquisitionThread, TLCameraSDK
 
 # Paths
-ASSETS_PATH = Path(
-    __file__).parent.parent / "assets"
-WATERMARK_PATH = Path(
-    __file__).parent.parent / "assets" / "cropps_watermark_dark.png"
-ICO_PATH = "./assets/CROPPS_vertical_logo.png"
-BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
+ASSETS_PATH = Path(__file__).parent.parent / "assets"
+WATERMARK_PATH = ASSETS_PATH / "cropps_watermark_dark.png"
+ICO_PATH = ASSETS_PATH / "CROPPS_vertical_logo.png"
+BG_PATH = ASSETS_PATH / "cropps_background.png"
 
 configure_path(DLL_PATH)
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
-DEVICE_INDEX = 0
-QUERY_TIME = 0.05  # Buffer time for Dino-Lite to return value
-COMMAND_TIME = 0.25  # Buffer time to allow Dino-Lite to process command
+SAVE_FREQ = 3
 
 
 def threaded(target):
@@ -68,9 +63,6 @@ class CameraApp(tk.Tk):
         self.iconphoto(False, self.icon)
         self.threads = []
         self._last_msg_history = []
-
-        # self.resizable(False, False)
-        # self.attributes('-fullscreen', True)
 
         # Show loading screen in main window
         self.loading_frame = tk.Frame(self)
@@ -103,39 +95,7 @@ class CameraApp(tk.Tk):
         self.current_injection_port = "COM3"
         self.burn_port = "COM4"
 
-        # Using argv here:
-        # Toggle graphs and webcam feed
-        self.show_buttons = self.show_graph = self.truncate_msgs = self.show_webcam = False
-        for arg in argv[1:]:
-            if arg.startswith('-'):
-                if 'b' in arg:
-                    self.show_buttons = True
-                elif 'g' in arg:
-                    self.show_graph = True
-                elif 't' in arg:
-                    self.truncate_msgs = True
-                elif 'w' in arg:
-                    self.show_webcam = True
-                else:
-                    print("Unknown argument: ", arg)
-                    os.kill(os.getpid(), 2)
-            elif arg.startswith("--"):
-                match arg:
-                    case "--show-buttons":
-                        self.show_buttons = True
-                    case "--show-graphs":
-                        self.show_graph = True
-                    case "--truncate-messages":
-                        self.truncate_msgs = True
-                    case "--show-webcam":
-                        self.show_webcam = True
-                    case _:
-                        print("Unknown argument: ", arg)
-                        os.kill(os.getpid(), 2)
-            else:
-                print("Unknown argument: ", arg)
-                print(f"Hint: did you mean -{arg}?")
-                os.kill(os.getpid(), 2)
+        self._parse_args(argv)
 
         # Initialize camera in separate thread
         self.sdk = TLCameraSDK()
@@ -168,16 +128,6 @@ class CameraApp(tk.Tk):
         if not hasattr(self, "camera"): return
 
         if self.camera:
-            # frame = self.camera.get_pending_frame_or_null()
-            # if frame is not None:
-            # if hasattr(self, 'capture_task') and self.capture_task is not None:
-            # self.capture_task.set_frame(frame)
-            # self.analyzer.paint_square(frame)
-            # if self.camera.is_recording():
-            #     self.camera.write_video_frame()
-
-            # pil_image = self._process_frame(frame, "Scientific Camera")
-
             try:
                 self.pil_image = \
                     self.image_acquisition_thread.get_output_queue().queue[-1]
@@ -235,26 +185,9 @@ class CameraApp(tk.Tk):
                 self.webcam_canvas.create_image(x, y, anchor=tk.NW,
                                                 image=self.imgtk_web)
 
-        # Repeat this method after a short delay
-        # self.update_pid = self.after(1000 // self.camera.app_fps,
-        #                              self.update_camera_feed) \
-        #     if self.camera \
-        #     else self.after(10, self.update_camera_feed)
-
         self.update_pid = self.after(10, self.update_camera_feed)
 
     ## main functions for buttons ##
-    @threaded
-    def capture(self):
-        """Capture an image when the button is pressed."""
-        frame = self.camera.get_frame()
-        if frame is not None:
-            self.capture_task.capture_image(frame)
-            tkinter.messagebox.showinfo("Capture",
-                                        "Image captured successfully.")
-        else:
-            tkinter.messagebox.showerror("Capture", "Failed to capture image.")
-
     def start_stop_recording(self):
         """Start recording video."""
         if self.recording:
@@ -262,7 +195,7 @@ class CameraApp(tk.Tk):
             self.image_acquisition_thread.start_stop_recording(False)
             self.recording = False
 
-            tkinter.messagebox.showinfo("Recording", "Video recording stopped.")
+            print("Video recording stopped.")
             return
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -281,11 +214,7 @@ class CameraApp(tk.Tk):
     def start_analysis(self, prefix=None):
         assert not self.recording
 
-        project_root = Path(__file__).resolve().parent.parent
-        assets_dir = project_root / "assets" / "captured_data"
-
         self.screenshot_directory = self.start_stop_recording()
-        # assets_dir / f"analysis_{time.strftime('%Y%m%d_%H%M%S')}"
         self.screenshot_directory.mkdir(parents=True, exist_ok=True)
         self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
         self.capture_task.start()
@@ -294,14 +223,8 @@ class CameraApp(tk.Tk):
             self.start_analysis_button.config(
                 text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
-        threading.Thread(target=self.capture_task.start_timer,
-                         args=(20, self.stop_analysis), daemon=True).start()
-
     def stop_analysis(self):
-        print(self.recording)
-        if not self.recording: return
-
-        if not self.capture_task: return
+        assert self.recording and self.capture_task
 
         if self.capture_task.is_alive():
             self.capture_task.stop()
@@ -349,7 +272,7 @@ class CameraApp(tk.Tk):
                     self.after(0, lambda: tkinter.messagebox.showinfo(
                         "Analysis Result", f"Detection result: {result}"))
 
-            except ZeroDivisionError as e:
+            except Exception as e:
                 self.after(0, lambda: tkinter.messagebox.showerror(
                     "Analysis Error", f"Failed to analyze images: {e}"))
             finally:
@@ -504,62 +427,6 @@ class CameraApp(tk.Tk):
                 dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
 
-    def show_fps_dialog(self):
-        def apply():
-            fps_value = fps_entry.get()
-            self.camera.data_rate = fps_value  # TODO
-            dialog.destroy()
-            (
-                tkinter.messagebox.showinfo(
-                    "Framerate", f"Framerate set to {self.camera.data_rate:,}"
-                )
-            )
-
-            # error_label.config(
-            #     text=f"Please enter a valid value between {mn} and {mx}.")
-
-        dialog = tk.Toplevel(self)
-        dialog.title("Framerate Settings")
-        dialog.geometry("400x150")
-        dialog.resizable(False, False)
-
-        content_frame = tk.Frame(dialog)
-        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        current_label = tk.Label(
-            content_frame, text=f"Current Framerate: {self.camera.data_rate:,}"
-        )
-        current_label.pack(pady=(0, 10))
-
-        input_frame = tk.Frame(content_frame)
-        input_frame.pack(fill="x", pady=5)
-
-        tk.Label(input_frame, text="New framerate:").pack(side="left")
-        fps_entry = tk.Entry(input_frame, width=25)
-        fps_entry.pack(side="left", padx=10)
-        tk.Label(input_frame, text="Hertz").pack(side="left", padx=2)
-
-        button_frame = tk.Frame(content_frame)
-        button_frame.pack()
-
-        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
-                  width=10).pack(
-            side="left", padx=5
-        )
-
-        fps_entry.bind("<Return>", lambda e: apply())
-
-        # Center the dialog on the main window
-        dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (
-                dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (
-                dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
-
     def save_graph(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         file_name = Path(
@@ -605,13 +472,6 @@ class CameraApp(tk.Tk):
                 self.button_canvas.itemconfig("self.button_frame",
                                               width=event.width)
 
-        # # Capture Button
-        # self.capture_button = tk.Button(self.button_frame, text="Capture Image",
-        #                                 command=self.capture,font=("Arial", 16))
-        # self.capture_button.pack(side="left", padx=20)
-
-        # TODO: Hide buttons if camera not detected
-
         # Start Recording Button
         self.start_record_button = tk.Button(
             self.button_frame,
@@ -621,24 +481,15 @@ class CameraApp(tk.Tk):
         )
         self.start_record_button.pack(side="left", padx=20)
 
-        # Stop Recording Button
-        # self.stop_record_button = tk.Button(
-        #     self.button_frame,
-        #     text="Stop Recording",
-        #     command=self.stop_recording,
-        #     font=("Arial", 16),
-        # )
-        # self.stop_record_button.pack(side="left", padx=20)
-
-        # # Analysis buttons
-        # self.start_analysis_button = tk.Button(
-        #     self.button_frame,
-        #     text="Start Analysis",
-        #     fg="darkgreen",
-        #     command=self.start_analysis,
-        #     font=("Arial", 16),
-        # )
-        # self.start_analysis_button.pack(side="left", padx=20)
+        # Analysis buttons
+        self.start_analysis_button = tk.Button(
+            self.button_frame,
+            text="Start Analysis",
+            fg="darkgreen",
+            command=self.start_analysis,
+            font=("Arial", 16),
+        )
+        self.start_analysis_button.pack(side="left", padx=20)
 
         # Set SMS information Button
         self.set_sms_button = tk.Button(
@@ -657,33 +508,10 @@ class CameraApp(tk.Tk):
         self.exposure_button.pack(side="left", padx=10)
 
         # Triggers
-        self.triggers_button = tk.Menubutton(
-            self.button_frame, text="Triggers...", font=("Arial", 16)
-        )
-        self.triggers_menu = tk.Menu(self.triggers_button, tearoff=0)
-        self.triggers_button.config(menu=self.triggers_menu)
-
-        self.triggers_menu.add_command(
-            label="Current Injection",
-            command=lambda: self._execute_trigger('1'),
-            font=("Arial", 16),
-        )
-        self.triggers_menu.add_command(
-            label="Burn",
-            command=lambda: self._execute_trigger('2'),
-            font=("Arial", 16),
-        )
-        self.triggers_menu.add_command(
-            label="Cut",
-            command=lambda: self._execute_trigger('3'),
-            font=("Arial", 16),
-        )
-        self.triggers_menu.add_command(
-            label="Settings...",
-            command=lambda: self._show_trigger_settings(),
-            font=("Arial", 16),
-        )
-
+        self.triggers_button = tk.Button(self.button_frame,
+                                         text="Settings...",
+                                         command=self._show_trigger_settings,
+                                         font=("Arial", 16))
         self.triggers_button.pack(side="left", padx=5)
 
         # Save graph
@@ -692,7 +520,6 @@ class CameraApp(tk.Tk):
         #                                    command=self.save_graph)
         # self.save_graph_button.pack(side="left", padx=10)
 
-        # Save graph
         self.pattern_button = tk.Button(
             self.button_frame,
             text="Open analyzer",
@@ -722,8 +549,12 @@ class CameraApp(tk.Tk):
             new_msg = self.sms_sender.new_msgs.get()
 
         print("Message received:", new_msg)
-        # Magic number here:
+        # Magic number here: analysis timeout
         analysis_timeout = 20
+        def start_timer():
+            threading.Thread(target=self.capture_task.start_timer,
+                             args=(analysis_timeout, self.stop_analysis),
+                             daemon=True).start()
 
         try:
             # I just found out python has pattern matching!!!!!
@@ -732,16 +563,17 @@ class CameraApp(tk.Tk):
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["trigger"])
                     self.trigger.injection(self.current_injection_port)
-                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                    start_timer()
                 case "burn" | '2':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["burn"])
                     self.trigger.burn(self.burn_port)
-                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                    start_timer()
                 # TODO: more cases here
                 case "cutter":
                     threading.Thread(
                         target=src.cutter_control.cutter_app).start()
+
                 case "sms":
                     self.sms_info()
                 case "stop" | 's':
@@ -770,7 +602,7 @@ class CameraApp(tk.Tk):
             print("Camera not detected")
             self.quit()
 
-        self.image_acquisition_thread = ImageAcquisitionThread(self.camera)
+        self.image_acquisition_thread = ImageAcquisitionThread(self.camera, SAVE_FREQ)
         print("Setting camera parameters...")
         self.camera.frames_per_trigger_zero_for_unlimited = 0
         self.camera.arm(2)
@@ -1076,26 +908,12 @@ class CameraApp(tk.Tk):
 
     def _show_trigger_settings(self):
         def apply_trigger():
-            # try:
-            #     self.current_injection_port = "COM" + str(
-            #         int(current_entry.get().strip())
-            #     )
-            #     self.burn_port = "COM" + str(int(burn_entry.get().strip()))
-            #
-            #     dialog.destroy()
-            #     print(
-            #         f"Current Injection Port: {self.current_injection_port}\n"
-            #         f"Burn Port: {self.burn_port}"
-            #     )
-            # except ValueError:
-            #     error_label.config(text="Invalid Serial Port")
-
             for name, entry in all_entries:
                 name = name.replace(' ', '_').replace(':', '').lower()
                 value = entry.get().strip()
-                setattr(self, name, value)
-                print(f"[INFO] Attribute \"{name}\" set to {value}")
-
+                if value:
+                    setattr(self, name, value)
+                    print(f"[INFO] Attribute \"{name}\" set to {value}")
             dialog.destroy()
 
         dialog = tk.Toplevel(self)
@@ -1149,6 +967,11 @@ class CameraApp(tk.Tk):
         tk.Button(button_frame, text="Apply", command=apply_trigger,
                   width=10).pack(side="left", padx=5)
 
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(
+            side="left", padx=5
+        )
+
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
@@ -1156,18 +979,48 @@ class CameraApp(tk.Tk):
         content_frame.update_idletasks()
         canvas.config(scrollregion=canvas.bbox("all"))
 
-        # tk.Button(button_frame, text="Cancel", command=dialog.destroy,
-        #           width=10).pack(
-        #     side="left", padx=5
-        # )
-        #
-        # # ---- Center the dialog ----
-        # dialog.update_idletasks()
-        # x = self.winfo_x() + (self.winfo_width() // 2) - (
-        #         dialog.winfo_width() // 2)
-        # y = self.winfo_y() + (self.winfo_height() // 2) - (
-        #         dialog.winfo_height() // 2)
-        # dialog.geometry(f"+{x}+{y}")
+        # ---- Center the dialog ----
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (
+                dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (
+                dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+    def _parse_args(self, argv):
+        # Using argv here:
+        # Toggle graphs and webcam feed
+        self.show_buttons = self.show_graph = self.truncate_msgs = self.show_webcam = False
+        for arg in argv[1:]:
+            if arg.startswith('-'):
+                if 'b' in arg:
+                    self.show_buttons = True
+                elif 'g' in arg:
+                    self.show_graph = True
+                elif 't' in arg:
+                    self.truncate_msgs = True
+                elif 'w' in arg:
+                    self.show_webcam = True
+                else:
+                    print("Unknown argument: ", arg)
+                    os.kill(os.getpid(), 2)
+            elif arg.startswith("--"):
+                match arg:
+                    case "--show-buttons":
+                        self.show_buttons = True
+                    case "--show-graphs":
+                        self.show_graph = True
+                    case "--truncate-messages":
+                        self.truncate_msgs = True
+                    case "--show-webcam":
+                        self.show_webcam = True
+                    case _:
+                        print("Unknown argument: ", arg)
+                        os.kill(os.getpid(), 2)
+            else:
+                print("Unknown argument: ", arg)
+                print(f"Hint: did you mean -{arg}?")
+                os.kill(os.getpid(), 2)
 
     def _process_frame(self, frame, text):
         """ Add text to frame """

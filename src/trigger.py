@@ -32,5 +32,7 @@ class Trigger:
         # Run burn in a separate thread to avoid blocking CaptureTask
         threading.Thread(target=assets.burn.main, args=(port,), daemon=True).start()
 
+    # TODO: add more
+
 if __name__ == '__main__':
     print("Please consider running main.py")

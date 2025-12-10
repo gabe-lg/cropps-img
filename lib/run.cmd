@@ -8,7 +8,7 @@ IF NOT EXIST ".setup_ok" (
 )
 
 call .\venv\Scripts\activate
-set /p user_input=enter your arguments:
+set /p user_input=enter arguments:
 
 cd cropps-img
 call ..\venv\Scripts\python main.py %user_input%
