@@ -1,5 +1,9 @@
 @echo off
 
+cls
+echo Plant Programming and Communication Project v2.1.0
+echo Setting up...
+
 IF NOT EXIST ".\venv\Scripts\activate" (
     echo Creating virtual environment...
     python -m venv .\venv
@@ -35,6 +39,23 @@ IF NOT EXIST "cropps-img" (
     cd ..
 )
 
+IF NOT EXIST "cropps-pattern" (
+    echo Cloning repository 'cropps-pattern'...
+    git clone https://github.com/gabe-lg/cropps-pattern
+    IF %ERRORLEVEL% NEQ 0 (
+        echo Error: Failed to clone repository 'cropps-pattern'
+        exit /b 1
+    )
+) ELSE (
+    cd cropps-pattern
+    git pull
+    IF %ERRORLEVEL% NEQ 0 (
+        echo Error: Failed to pull repository 'cropps-pattern'
+        exit /b 1
+    )
+    cd ..
+)
+
 echo Installing dependencies...
 call .\venv\Scripts\pip install -r cropps-img/requirements.txt
 IF %ERRORLEVEL% NEQ 0 (
@@ -62,28 +83,6 @@ IF EXIST "platform-tools" (
     )
 )
 
-IF EXIST "cropps-pattern" (
-    echo Moving cropps-pattern...
-    move cropps-pattern cropps-img
-) ELSE (
-    IF EXIST "cropps-img/cropps-pattern" (
-        cd cropps-img/cropps-pattern
-        git pull
-        IF %ERRORLEVEL% NEQ 0 (
-            echo Error: Failed to pull repository 'cropps-pattern'
-            exit /b 1
-        )
-        cd ../..
-    ) ELSE (
-        cd cropps-img
-        echo Cloning repository 'cropps-pattern'...
-        git clone https://github.com/gabe-lg/cropps-pattern
-        IF %ERRORLEVEL% NEQ 0 (
-            echo Error: Failed to clone repository 'cropps-pattern'
-            exit /b 1
-        )
-        cd ..
-    )
-)
+type nul > .setup_ok
 
 echo Setup done!

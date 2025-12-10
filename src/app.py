@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -17,9 +18,10 @@ if __name__ == "__main__" or __package__ is None:
     if _project_root not in sys.path:
         sys.path.insert(0, _project_root)
 
-# import src.cutter_control
 import src.analyzer
+import src.cutter_control
 import src.loggernet
+
 from src.capture_task import CaptureTask
 from src.trigger import Trigger
 from src.image_analysis import image_analysis
@@ -690,6 +692,15 @@ class CameraApp(tk.Tk):
         #                                    command=self.save_graph)
         # self.save_graph_button.pack(side="left", padx=10)
 
+        # Save graph
+        self.pattern_button = tk.Button(
+            self.button_frame,
+            text="Open analyzer",
+            command=self._open_pattern_app,
+            font=("Arial", 16)
+        )
+        self.pattern_button.pack(side="left", padx=10)
+
         # Close Button
         self.quit_button = tk.Button(
             self.button_frame, text="Exit", command=self.quit,
@@ -728,6 +739,11 @@ class CameraApp(tk.Tk):
                     self.trigger.burn(self.burn_port)
                     self.after(analysis_timeout * 1000, self.stop_analysis)
                 # TODO: more cases here
+                case "cutter":
+                    threading.Thread(
+                        target=src.cutter_control.cutter_app).start()
+                case "sms":
+                    self.sms_info()
                 case "stop" | 's':
                     if self.capture_task:
                         self.sms_sender.send_msg(
@@ -787,6 +803,15 @@ class CameraApp(tk.Tk):
                 self.watermark = Image.new("RGBA", (200, 100))
 
         get_path(watermark_path)
+
+    def _open_pattern_app(self):
+        try:
+            os.chdir(Path(__file__).parent.parent.parent)
+            subprocess.Popen(['python', 'cropps-pattern/main.py'])
+            print("[INFO] Pattern app started")
+        except Exception as e:
+            tkinter.messagebox.showerror("Error",
+                                         f"Could not open external app: {e}")
 
     @threaded
     def _poll_messages(self):
@@ -1107,12 +1132,11 @@ class CameraApp(tk.Tk):
                 tk.Label(frame, text=i).pack(side="right")
                 all_entries.append((i, entry))
 
-            for i in setting["buttons"]:
-                # TODO: `key` is overwritten by the last item.
+            for name, msg in setting["buttons"].items():
                 frame = tk.Frame(content_frame)
                 frame.pack(fill="x", pady=5)
-                tk.Button(frame, text="not implemented",
-                          command=lambda: self._execute_trigger(key),
+                tk.Button(frame, text=name,
+                          command=lambda msg=msg: self._execute_trigger(msg),
                           width=10).pack()
 
         # ---- Error Label ----
@@ -1175,5 +1199,4 @@ class CameraApp(tk.Tk):
 
 def main(argv):
     app = CameraApp(argv)
-    # threading.Thread(target=src.cutter_control.cutter_app).start()
     app.mainloop()

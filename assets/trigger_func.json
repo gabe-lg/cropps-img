@@ -6,40 +6,40 @@
       "Duration",
       "Amplitude"
     ],
-    "buttons": [
-      "Execute"
-    ]
+    "buttons": {
+      "Execute": "1"
+    }
   },
   "1": {
     "title": "Burn",
     "items": [
       "Burn Port: COM"
     ],
-    "buttons": [
-      "Execute"
-    ]
+    "buttons": {
+      "Execute": "2"
+    }
   },
   "2": {
     "title": "Cutter",
     "items": [
     ],
-    "buttons": [
-      "Execute"
-    ]
+    "buttons": {
+      "Execute": "cutter"
+    }
   },
   "3": {
     "title": "SMS",
     "items": [
     ],
-    "buttons": [
-      "Open dialog"
-    ]
+    "buttons": {
+      "Open": "sms"
+    }
   },
   "4": {
     "title": "General",
     "items": [
       "Temperature"
     ],
-    "buttons": []
+    "buttons": {}
   }
 }

@@ -1,6 +1,12 @@
 @echo off
 
-call .\setup.cmd
+cls
+echo Plant Programming and Communication Project v2.1.0
+
+IF NOT EXIST ".setup_ok" (
+    call .\setup.cmd
+)
+
 call .\venv\Scripts\activate
 set /p user_input=enter your arguments:
 
