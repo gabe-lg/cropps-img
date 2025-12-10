@@ -26,7 +26,8 @@ from src.image_analysis import image_analysis
 from src.remote_image_analysis import remote_image_analysis
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-DLL_PATH = r"C:\Users\gabby\Downloads\dlls"
+DLL_PATH = str(Path(__file__).parent.parent / "dlls")
+print(DLL_PATH)
 sys.path.insert(0, DLL_PATH)
 from windows_setup import configure_path
 from lib.image_queue import ImageAcquisitionThread, TLCameraSDK
@@ -56,7 +57,7 @@ def threaded(target):
 
 
 class CameraApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, argv):
         super().__init__()
         self.title("CROPPS Camera Control")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
@@ -100,14 +101,39 @@ class CameraApp(tk.Tk):
         self.current_injection_port = "COM3"
         self.burn_port = "COM4"
 
+        # Using argv here:
         # Toggle graphs and webcam feed
-        # TODO: add button that toggles whether data is displayed in camera feed
-        self.show_graph = False
-        # self.show_graph = tk.messagebox.askyesno("Graphs", "Show graphs?")
-        self.show_webcam = False
-
-        self.show_buttons = True
-        self.truncate_msgs = False
+        self.show_buttons = self.show_graph = self.truncate_msgs = self.show_webcam = False
+        for arg in argv[1:]:
+            if arg.startswith('-'):
+                if 'b' in arg:
+                    self.show_buttons = True
+                elif 'g' in arg:
+                    self.show_graph = True
+                elif 't' in arg:
+                    self.truncate_msgs = True
+                elif 'w' in arg:
+                    self.show_webcam = True
+                else:
+                    print("Unknown argument: ", arg)
+                    os.kill(os.getpid(), 2)
+            elif arg.startswith("--"):
+                match arg:
+                    case "--show-buttons":
+                        self.show_buttons = True
+                    case "--show-graphs":
+                        self.show_graph = True
+                    case "--truncate-messages":
+                        self.truncate_msgs = True
+                    case "--show-webcam":
+                        self.show_webcam = True
+                    case _:
+                        print("Unknown argument: ", arg)
+                        os.kill(os.getpid(), 2)
+            else:
+                print("Unknown argument: ", arg)
+                print(f"Hint: did you mean -{arg}?")
+                os.kill(os.getpid(), 2)
 
         # Initialize camera in separate thread
         self.sdk = TLCameraSDK()
@@ -1147,7 +1173,7 @@ class CameraApp(tk.Tk):
         return pil_image
 
 
-def main():
-    app = CameraApp()
+def main(argv):
+    app = CameraApp(argv)
     # threading.Thread(target=src.cutter_control.cutter_app).start()
     app.mainloop()

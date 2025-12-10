@@ -1,0 +1,10 @@
+Plant Programming and Communication Project v2.1.0
+** For more information, see https://github.com/gabe-lg/cropps-img/blob/main/README.md
+
+Usage: cropps_img [OPTIONS]
+OPTIONS:
+  -h, --help                    Show this help text
+  -b, --show-buttons            Show buttons
+  -g, --show-graphs             Show graphs
+  -t, --truncate-messages       Truncate messages
+  -w, --show-webcam             Show webcam

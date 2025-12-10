@@ -6,6 +6,7 @@ import re
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 
 def fix_encoding(data):
@@ -20,8 +21,7 @@ def fix_encoding(data):
 class SmsSender:
     def __init__(self):
         # The path where adb was installed
-        self.dir = ("C:\\Users\\CROPPS-in-Box\\Documents\\cropps main "
-                    "folder\\platform-tools-latest-windows\\platform-tools")
+        self.dir = str(Path(__file__).parent.parent / "platform-tools")
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
