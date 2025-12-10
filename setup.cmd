@@ -19,18 +19,24 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 IF NOT EXIST "cropps-img" (
-    echo Cloning repository...
+    echo Cloning repository 'cropps-img'...
     git clone https://github.com/gabe-lg/cropps-img
     IF %ERRORLEVEL% NEQ 0 (
-        echo Error: Failed to clone repository
+        echo Error: Failed to clone repository 'cropps-img'
         exit /b 1
     )
 ) ELSE (
-    echo Repository 'cropps-img' already exists
+    cd cropps-img
+    git pull
+    IF %ERRORLEVEL% NEQ 0 (
+        echo Error: Failed to pull repository 'cropps-img'
+        exit /b 1
+    )
+    cd ..
 )
 
 echo Installing dependencies...
-python -m pip install -r cropps-img/requirements.txt
+call .\venv\Scripts\pip install -r cropps-img/requirements.txt
 IF %ERRORLEVEL% NEQ 0 (
     echo Error: Failed to install dependencies
     exit /b 1
@@ -56,5 +62,28 @@ IF EXIST "platform-tools" (
     )
 )
 
+IF EXIST "cropps-pattern" (
+    echo Moving cropps-pattern...
+    move cropps-pattern cropps-img
+) ELSE (
+    IF EXIST "cropps-img/cropps-pattern" (
+        cd cropps-img/cropps-pattern
+        git pull
+        IF %ERRORLEVEL% NEQ 0 (
+            echo Error: Failed to pull repository 'cropps-pattern'
+            exit /b 1
+        )
+        cd ../..
+    ) ELSE (
+        cd cropps-img
+        echo Cloning repository 'cropps-pattern'...
+        git clone https://github.com/gabe-lg/cropps-pattern
+        IF %ERRORLEVEL% NEQ 0 (
+            echo Error: Failed to clone repository 'cropps-pattern'
+            exit /b 1
+        )
+        cd ..
+    )
+)
+
 echo Setup done!
-pause
