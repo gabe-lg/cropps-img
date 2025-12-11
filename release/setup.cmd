@@ -1,7 +1,7 @@
 @echo off
 
 cls
-echo Plant Programming and Communication Project v3.0.0
+echo Plant Programming and Communication Project v3.0.0-beta
 echo Setting up...
 
 IF NOT EXIST ".\venv\Scripts\activate" (
