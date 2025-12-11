@@ -1,7 +1,7 @@
 @echo off
 
 cls
-echo Plant Programming and Communication Project v2.1.0
+echo Plant Programming and Communication Project v3.0.0
 
 IF NOT EXIST ".setup_ok" (
     call .\setup.cmd

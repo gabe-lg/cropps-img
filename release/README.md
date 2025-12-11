@@ -1,4 +1,4 @@
-# Plant Programming and Communication Project v2.1.0
+# Plant Programming and Communication Project v3.0.0
 
 **Note**: This software is only compatible with _Zelux® 1.6 MP Monochrome CMOS
 Camera, 1/4"-20 Taps, External Trigger (CS165MU1)_.

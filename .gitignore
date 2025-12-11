@@ -24,5 +24,11 @@ shared-images/*
 assets/data.csv
 !assets/
 
+# Release
+release/*
+!release/*.cmd
+!release/*.md
+
+# misc
 yacctab.py
 lextab.py
