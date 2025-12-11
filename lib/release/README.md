@@ -15,9 +15,9 @@ run again after the initial execution. To force a new setup at any time, use
 
 Upon successful setup, you will be prompted to enter arguments. For default
 behavior, press return. For the list of available options, enter `-h`, or
-run `run.cmd -h`.
+run `./run.cmd -h`.
 
 _Tip_: Avoid repeatedly typing arguments using the following syntax:
 ```commandline
-run.cmd <options>
+./run.cmd <options>
 ```
