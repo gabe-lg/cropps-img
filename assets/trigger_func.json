@@ -3,8 +3,8 @@
     "title": "Current Injection",
     "items": [
       "Current Injection Port: COM",
-      "Duration",
-      "Amplitude"
+      "Injection Duration",
+      "Injection Amplitude"
     ],
     "buttons": {
       "Execute": "1"
@@ -13,7 +13,8 @@
   "1": {
     "title": "Burn",
     "items": [
-      "Burn Port: COM"
+      "Burn Port: COM",
+      "Burn Duration"
     ],
     "buttons": {
       "Execute": "2"

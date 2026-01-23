@@ -19,7 +19,8 @@ VOLT_COMPLIANCE = 200  # Voltage compliance in V
 data = []
 
 
-def main(port):
+def main(port, duration, amplitude):
+    # FIXME: use `duration` and `amplitude` instead of hardcoding
     # Initialize serial connection
     try:
         keithley = serial.Serial(

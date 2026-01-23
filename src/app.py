@@ -562,20 +562,33 @@ class CameraApp(tk.Tk):
                 case "current injection" | '1':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["trigger"])
-                    self.trigger.injection(self.current_injection_port)
+
+                    if not hasattr(self, "injection_duration") or not hasattr(self, "injection_amplitude"):
+                        raise ValueError("Parameters not set")
+                        # TODO: or possibly set default values here
+
+                    self.trigger.injection(self.current_injection_port, self.injection_duration, self.injection_amplitude)
                     start_timer()
+
                 case "burn" | '2':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["burn"])
-                    self.trigger.burn(self.burn_port)
+
+                    if not hasattr(self, "burn_duration"):
+                        raise ValueError("Burn duration not set")
+                        # TODO: or possibly set a default value here
+
+                    self.trigger.burn(self.burn_port, self.burn_duration)
                     start_timer()
                 # TODO: more cases here
+
                 case "cutter":
                     threading.Thread(
                         target=src.cutter_control.cutter_app).start()
 
                 case "sms":
                     self.sms_info()
+
                 case "stop" | 's':
                     if self.capture_task:
                         self.sms_sender.send_msg(
@@ -584,10 +597,12 @@ class CameraApp(tk.Tk):
                     else:
                         self.sms_sender.send_msg(self.sms_sender.template
                                                  ["received"]["stop"]["error"])
+
                 case "quit" | 'q':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["quit"])
                     self.quit()
+
                 case _:
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["else"])

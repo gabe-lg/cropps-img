@@ -22,15 +22,15 @@ class Trigger:
         except:
             print("[ERROR] Pre-trigger failed")
 
-    def injection(self, port):
+    def injection(self, port, *args):
         self.pre_trigger()
         # Run injection in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=assets.injection.main, args=(port,), daemon=True).start()
+        threading.Thread(target=assets.injection.main, args=(port, *args), daemon=True).start()
 
-    def burn(self, port):
+    def burn(self, port, *args):
         self.pre_trigger()
         # Run burn in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=assets.burn.main, args=(port,), daemon=True).start()
+        threading.Thread(target=assets.burn.main, args=(port, *args), daemon=True).start()
 
     # TODO: add more
 
