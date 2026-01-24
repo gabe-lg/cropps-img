@@ -12,6 +12,9 @@ from tkinter.scrolledtext import ScrolledText
 import cv2
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from src.camera import Camera
+from src.loading_screen import LoadingScreen
+
 # Ensure project root is on sys.path when running this file directly
 if __name__ == "__main__" or __package__ is None:
     _project_root = str(Path(__file__).resolve().parents[1])
@@ -62,57 +65,27 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         self._last_msg_history = []
-
-        # Show loading screen in main window
-        self.loading_frame = tk.Frame(self)
-        self.loading_frame.place(relx=0.5, rely=0.5, anchor="center")
-
-        # Load and display background
-        try:
-            bg_image = Image.open(BG_PATH)
-            bg_image = bg_image.resize((400, 300))
-            self.bg_photo = ImageTk.PhotoImage(bg_image)
-            bg_label = tk.Label(self.loading_frame, image=self.bg_photo)
-            bg_label.pack()
-        except Exception as e:
-            print(f"Error loading background: {e}")
-            self.loading_frame.configure(bg="white")
-
-        # Create canvas for rotating circle
-        self.loading_canvas = tk.Canvas(self.loading_frame, width=50, height=50)
-        self.loading_canvas.pack(pady=(20, 5))  # Reduced bottom padding
-
-        # Add loading text
-        self.loading_text = tk.Label(
-            self.loading_frame, text="Loading...", font=("Comic Sans MS", 16)
-        )
-        self.loading_text.pack(pady=(0, 20))
-
-        # Initialize loading animation
-        self.angle = 60
-        self._animate_loading()
-
         self._parse_args(argv)
 
-        # Initialize camera in separate thread
-        self.sdk = TLCameraSDK()
-        camera_list = self.sdk.discover_available_cameras()
-        try:
-            self.camera = self.sdk.open_camera(camera_list[0])
-        except Exception as e:
-            self.camera = None
-            print(f"Error loading camera: {e}")
+        self.setup_ok_event = threading.Event()
 
-        self._init_camera_thread()
+        try:
+            self.camera = Camera(self.setup_ok_event)
+            threading.Thread(target=self.camera.setup).start()
+            self.loading_screen = LoadingScreen(self)
+            self._setup_ui_after_camera()
+        except RuntimeError as e:
+            print(e)
+            self.quit()
 
     def quit(self):
         print("Exiting...")
         # self.stop_analysis()
         try:
             self.after_cancel(self.update_pid)
-            self.image_acquisition_thread.stop()
-            self.camera.dispose()
-            self.sdk.dispose()
+            self.camera.image_acquisition_thread.stop()
+            self.camera.camera.dispose()
+            self.camera.sdk.dispose()
             self.destroy()
             print("Exited successfully")
         finally:
@@ -122,13 +95,11 @@ class CameraApp(tk.Tk):
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
         # === Main camera (self.camera) ===
-        if not hasattr(self, "camera"): return
-
         # Get latest image from camera
         if self.camera:
             try:
                 self.pil_image = \
-                    self.image_acquisition_thread.get_output_queue().queue[-1]
+                    self.camera.image_acquisition_thread.get_output_queue().queue[-1]
             except IndexError:
                 # queue is empty
                 pass
@@ -197,7 +168,7 @@ class CameraApp(tk.Tk):
         """Start recording video."""
         if self.recording:
             self.start_record_button.config(text="Start recording")
-            self.image_acquisition_thread.start_stop_recording(False)
+            self.camera.image_acquisition_thread.start_stop_recording(False)
             self.recording = False
 
             print("Video recording stopped.")
@@ -209,8 +180,8 @@ class CameraApp(tk.Tk):
         folder_path.mkdir(parents=True)
 
         self.start_record_button.config(text="Stop recording")
-        self.image_acquisition_thread.image_dir = folder_path
-        self.image_acquisition_thread.start_stop_recording(True)
+        self.camera.image_acquisition_thread.image_dir = folder_path
+        self.camera.image_acquisition_thread.start_stop_recording(True)
         self.recording = True
 
         print(f"Video recording started. Folder: {folder_path}")
@@ -449,23 +420,6 @@ class CameraApp(tk.Tk):
                                          f"Could not open external app: {e}")
 
     ## setup helpers ##
-    def _animate_loading(self):
-        """Animate the loading circle"""
-        if hasattr(self, "camera"):
-            return
-
-        self.loading_canvas.delete("all")
-
-        # Draw rotating arc
-        # TODO: Bad loading icon
-        self.loading_canvas.create_arc(
-            5, 5, 45, 45, start=self.angle, extent=300, fill="", outline="blue",
-            width=2
-        )
-
-        self.angle = (self.angle - 10) % 360
-        self.after(50, self._animate_loading)
-
     def _create_widgets(self):
         """Create all the GUI buttons."""
 
@@ -623,24 +577,6 @@ class CameraApp(tk.Tk):
         except Exception as e:
             tkinter.messagebox.showerror("Error",
                                          f"An error occurred while running external script: {e}")
-
-    @threaded
-    def _init_camera_thread(self):
-        """Initialize camera in a separate thread"""
-        if not self.camera:
-            print("Camera not detected")
-            self.quit()
-
-        self.image_acquisition_thread = ImageAcquisitionThread(self.camera, SAVE_FREQ)
-        print("Setting camera parameters...")
-        self.camera.frames_per_trigger_zero_for_unlimited = 0
-        self.camera.arm(2)
-        self.camera.issue_software_trigger()
-
-        print("Starting image acquisition thread...")
-        self.image_acquisition_thread.start()
-
-        self.after(0, self._setup_ui_after_camera)
 
     @threaded
     def _init_sms_receiver(self):
@@ -887,7 +823,11 @@ class CameraApp(tk.Tk):
     def _setup_ui_after_camera(self):
         """Setup UI after camera initialization"""
         # Remove loading screen
-        self.loading_frame.destroy()
+        if not self.setup_ok_event.is_set():
+            self.after(50, self._setup_ui_after_camera)
+            return
+
+        self.loading_screen.__del__()
 
         # Continue with regular UI setup
         self.recording = False

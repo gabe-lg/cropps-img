@@ -3,29 +3,17 @@ Credits: Addapted from `Windows SDK and Doc. for Scientific Cameras by ThorLab
 <https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>`_
 """
 
-import os
-import sys
+import queue
+import threading
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-
-if __name__ == "__main__" or __package__ is None:
-    _project_root = str(Path(__file__).resolve().parents[1])
-    if _project_root not in sys.path:
-        sys.path.insert(0, _project_root)
-from src.app import DLL_PATH
-
-sys.path.insert(0, DLL_PATH)
-os.add_dll_directory(DLL_PATH)
-
-from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, TLCamera, Frame
-from thorlabs_tsi_sdk.tl_camera_enums import SENSOR_TYPE
-from thorlabs_tsi_sdk.tl_mono_to_color_processor import MonoToColorProcessorSDK
-
 from PIL import Image
-import queue
-import threading
+
+from dlls.thorlabs_tsi_sdk.tl_camera import Frame
+from dlls.thorlabs_tsi_sdk.tl_camera_enums import SENSOR_TYPE
+from dlls.thorlabs_tsi_sdk.tl_mono_to_color_processor import \
+    MonoToColorProcessorSDK
 
 
 class ImageAcquisitionThread(threading.Thread):
@@ -118,7 +106,8 @@ class ImageAcquisitionThread(threading.Thread):
                         img.save(f"{dir}\\{self._image_count}.tiff")
 
                     self._image_count += 1
-                print(f"Saved {self._image_count // self.save_freq} images in total to {dir}")
+                print(
+                    f"Saved {self._image_count // self.save_freq} images in total to {dir}")
 
                 if force_save: self.image_dir = None
 
