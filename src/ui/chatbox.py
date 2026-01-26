@@ -30,12 +30,12 @@ class Chatbox(ScrolledText):
                 # This checks for correct phone number
                 if msgs != getattr(self, "_last_msg_history", []):
                     self._last_msg_history = msgs
-                    self._refresh_chatbox(msgs, truncate_msgs)
+                    self.refresh_chatbox(truncate_msgs)
 
         except Exception as e:
             print("Error polling messages:", e)
 
-    def _refresh_chatbox(self, msgs, truncate_msgs):
+    def refresh_chatbox(self, truncate_msgs):
         """Replace chatbox content with current message history."""
         self.configure(state="normal")
         self.delete("1.0", "end")
@@ -44,7 +44,7 @@ class Chatbox(ScrolledText):
         self.tag_config('r', foreground="red")
         self.tag_config('b', foreground="blue")
 
-        for m in msgs:
+        for m in getattr(self, "_last_msg_history", []):
             sender = "You" if m["type"] == "sent" \
                 else self.sms_sender.name or "Contact"
             tag = 'b' if m["type"] == "sent" else 'r'

@@ -1,10 +1,8 @@
-import threading
 import tkinter as tk
-from pathlib import Path
 
 from PIL import Image, ImageTk
-ASSETS_PATH = Path(__file__).parent.parent / "assets"
-BG_PATH = ASSETS_PATH / "cropps_background.png"
+
+from src.app import BG_PATH
 
 
 class LoadingScreen:
@@ -18,7 +16,7 @@ class LoadingScreen:
         # Outer frame that you can pack/place/grid in the main app
         self.loading_frame = tk.Frame(parent, bg="white")
         self.loading_frame.place(relx=0.5, rely=0.5,
-                         anchor="center")  # center on parent
+                                 anchor="center")  # center on parent
 
         # Load and display background
         try:

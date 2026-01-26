@@ -2,7 +2,8 @@ import glob
 import os
 import time
 
-from src import analyzer, sms_sender
+from src.tools import sms_sender
+from archive import analyzer
 
 # Get image directory from env var or fallback
 IMAGE_DIR = os.environ.get("IMAGE_DIR", "/app/shared-images")

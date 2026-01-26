@@ -7,14 +7,7 @@ from pathlib import Path
 
 import src
 from src.app import ASSETS_PATH
-
-if __name__ == "__main__" or __package__ is None:
-    _project_root = str(Path(__file__).resolve().parents[1])
-    if _project_root not in sys.path:
-        sys.path.insert(0, _project_root)
-
-import assets.burn
-import assets.injection
+from src.tools.triggers import *
 
 
 class Trigger:
@@ -137,17 +130,13 @@ class Trigger:
     def injection(self, port, *args):
         self.pre_trigger()
         # Run injection in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=assets.injection.main, args=(port, *args),
+        threading.Thread(target=injection.main, args=(port, *args),
                          daemon=True).start()
 
     def burn(self, port, *args):
         self.pre_trigger()
         # Run burn in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=assets.burn.main, args=(port, *args),
+        threading.Thread(target=burn.main, args=(port, *args),
                          daemon=True).start()
 
     # TODO: add more
-
-
-if __name__ == '__main__':
-    print("Please consider running main.py")

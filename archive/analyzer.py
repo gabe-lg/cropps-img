@@ -8,8 +8,8 @@ from matplotlib import use, pyplot as plt
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-import src.db
-import src.sms_sender
+import src.analysis.db
+import src.tools.sms_sender
 
 
 class Analyzer:
@@ -228,7 +228,7 @@ class Analyzer:
 
             print(
                 f"[DEBUG] Inserting to DB: yellow={a[1]}, normalized={b[1]}, agitated={res[0]}, path={final_path}")
-            src.db.insert_data(
+            src.analysis.db.insert_data(
                 yellow_pixels=a[1],
                 normalized_pixels=b[1],
                 agitation=res[0],
@@ -245,7 +245,7 @@ class Analyzer:
 
 class ImageHandler(FileSystemEventHandler):
     def __init__(self, analyzer: Analyzer,
-                 sms_sender: src.sms_sender.SmsSender):
+                 sms_sender: src.tools.sms_sender.SmsSender):
         super().__init__()
         self.analyzer = analyzer
         self.sms_sender = sms_sender
@@ -264,7 +264,7 @@ class ImageHandler(FileSystemEventHandler):
 
 class ObserverWrapper:
     def __init__(self, analyzer: Analyzer,
-                 sms_sender: src.sms_sender.SmsSender,
+                 sms_sender: src.tools.sms_sender.SmsSender,
                  image_dir=r"C:\Users\CROPPS-in-Box\Documents\cropps main folder\cropps-img\assets\captured_data"
                  ):
         self.event_handler = ImageHandler(analyzer, sms_sender)

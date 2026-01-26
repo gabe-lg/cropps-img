@@ -5,7 +5,7 @@ import tkinter.messagebox
 from pathlib import Path
 
 from dlls.thorlabs_tsi_sdk.tl_camera import TLCameraSDK
-from lib.image_queue import ImageAcquisitionThread
+from src.tools.image_queue import ImageAcquisitionThread
 
 SAVE_FREQ = 3
 
@@ -25,7 +25,7 @@ class Camera:
             camera_list = self.sdk.discover_available_cameras()
             self.camera = self.sdk.open_camera(camera_list[0])
         except Exception as e:
-            self.err = (f"[CAMERA] Error loading camera: {e}")
+            self.err = e
             self.setup_failed_event.set()
             return
 

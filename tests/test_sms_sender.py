@@ -1,4 +1,4 @@
-from src import sms_sender
+from src.tools import sms_sender
 
 sms_sender.SmsSender()
 sms_sender.name = 'Test'

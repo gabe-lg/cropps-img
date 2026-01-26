@@ -7,8 +7,8 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.capture_task import CaptureTask
-from src.remote_image_analysis import remote_image_analysis
+from archive.remote_image_analysis import remote_image_analysis
+from src.tools.capture_task import CaptureTask
 
 # Image dimensions
 IMAGE_WIDTH = 1440

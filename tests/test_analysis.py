@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0,
                 os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import src.analyzer
+import archive.analyzer
 import numpy as np
 import unittest
 
@@ -11,7 +11,7 @@ import unittest
 class TestAnalysis(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.analyzer = src.analyzer.Analyzer()
+        self.analyzer = archive.analyzer.Analyzer()
         self.analyzer.testing_init()
 
         # maximum number of images allowed to fail for each function

@@ -17,20 +17,15 @@ WATERMARK_PATH = ASSETS_PATH / "cropps_watermark_dark.png"
 ICO_PATH = ASSETS_PATH / "CROPPS_vertical_logo.png"
 BG_PATH = ASSETS_PATH / "cropps_background.png"
 
-# Ensure project root is on sys.path when running this file directly
-if __name__ == "__main__" or __package__ is None:
-    _project_root = str(Path(__file__).resolve().parents[1])
-    if _project_root not in sys.path:
-        sys.path.insert(0, _project_root)
-
-from src.camera import Camera
-from src.loading_screen import LoadingScreen
-from src.chatbox import Chatbox
-from src.trigger import Trigger
-from src.image_analysis import start_analysis, stop_analysis
-import src.analyzer
-import src.cutter_control
-import src.loggernet
+from src.analysis.image_analysis import start_analysis, stop_analysis
+from src.tools.cutter_control import cutter_app
+from src.tools.loggernet import Loggernet
+from src.tools.sms_sender import SmsSender
+from src.tools.trigger import Trigger
+from src.ui.camera import Camera
+from src.ui.chatbox import Chatbox
+from src.ui.loading_screen import LoadingScreen
+import archive.analyzer  # TODO
 
 DLL_PATH = str(Path(__file__).parent.parent / "dlls")
 from dlls.windows_setup import configure_path
@@ -301,7 +296,7 @@ class CameraApp(tk.Tk):
         analysis_timeout = 20
 
         try:
-            self.sms_sender.send_msg_after_message(new_msg, tk.Toplevel(self))
+            self.sms_sender.send_msg_after_message(new_msg, self)
             self.trigger.execute_trigger(new_msg)
 
             # I just found out python has pattern matching!!!!!
@@ -312,8 +307,7 @@ class CameraApp(tk.Tk):
                         args=(analysis_timeout, self.stop_analysis),
                         daemon=True).start()
                 case "cutter":
-                    threading.Thread(
-                        target=src.cutter_control.cutter_app).start()
+                    threading.Thread(target=cutter_app).start()
                 case "quit" | 'q':
                     self.send_msg(self.template["received"]["quit"])
                     self.quit()
@@ -360,7 +354,7 @@ class CameraApp(tk.Tk):
 
         def display_all(_):
             self.truncate_msgs = not self.truncate_msgs
-            self._refresh_chatbox(self._last_msg_history)
+            self.chatbox.refresh_chatbox(self.truncate_msgs)
 
         self.bind("<space>", display_all)
 
@@ -509,7 +503,8 @@ class CameraApp(tk.Tk):
         """Setup UI after camera initialization"""
         # Remove loading screen
         if self.camera.setup_failed_event.is_set():
-            print(self.camera.err)
+            tkinter.messagebox.showerror("Error loading camera",
+                                         self.camera.err)
             self.quit()
 
         if not self._setup_ok_event.is_set():
@@ -526,12 +521,12 @@ class CameraApp(tk.Tk):
         self.current_injection_port_com = 3
         self.burn_port_com = 4
 
-        self.histogram = src.analyzer.Histogram()
-        self.sms_sender = src.sms_sender.SmsSender()
+        self.histogram = archive.analyzer.Histogram()
+        self.sms_sender = SmsSender()
         self.trigger = Trigger(pre_trigger_func=self.start_analysis)
 
         if self.show_graph:
-            self.loggernet = src.loggernet.Loggernet()
+            self.loggernet = Loggernet()
 
         if self.show_webcam:
             self.cap = cv2.VideoCapture(0)

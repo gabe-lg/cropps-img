@@ -120,10 +120,9 @@ class SmsSender:
                     self.set_info(name, contact)
 
                     try:
-                        for i in range(len(text :=
-                                           self.template[
-                                               "initial_text"][
-                                               "current"])):
+                        for i in range(len(
+                                text := self.template
+                                ["initial_text"]["current"])):
                             self.send_msg(text[i])
                     except RuntimeError as e:
                         tkinter.messagebox.showerror(
@@ -305,33 +304,6 @@ class SmsSender:
 
         return all_msgs
 
-    def poll_message(self):
-        print("[poll_messages]: process spawned")
-        while True:
-            print("[poll_messages]: waiting")
-            self.msg_changed_event.wait()
-            self.msg_changed_event.clear()
-            print("[poll_messages]: finished waiting")
-
-            try:
-                if self.new_msg_event.is_set():
-                    self.new_msg_event.clear()
-                    self._execute_trigger()
-
-                if self.phone:
-                    msgs = self.get_msg_history(
-                        self.phone)
-
-                    # Only update if there’s new content
-                    # UPDATE v2.1.0: added `wait` above.
-                    # This checks for correct phone number
-                    if msgs != getattr(self, "_last_msg_history", []):
-                        self._last_msg_history = msgs
-                        self._refresh_chatbox(msgs)
-
-            except Exception as e:
-                print("Error polling messages:", e)
-
     def read_msg(self):
         """
         Continuously monitors text messages sent to the connected phone and
@@ -430,7 +402,7 @@ class SmsSender:
             case _:
                 self.send_msg(self.template["detected"]["else"])
 
-    def send_msg_after_message(self, new_msg, dialog):
+    def send_msg_after_message(self, new_msg, parent):
         match new_msg:
             case "current injection" | '1':
                 self.send_msg(self.template["received"]["trigger"])
@@ -439,7 +411,7 @@ class SmsSender:
                 self.send_msg(self.template["received"]["burn"])
 
             case "sms":
-                self.show_dialog(dialog)
+                self.show_dialog(tk.Toplevel(parent))
 
             case "stop" | 's':
                 if self.capture_task:
