@@ -10,8 +10,7 @@ BG_PATH = ASSETS_PATH / "cropps_background.png"
 class LoadingScreen:
     def __init__(self, parent: tk.Tk):
         """
-        :param parent: the parent widget (Tk or a Frame) where the loading UI is created
-        :param done_event: threading.Event that will be set by your setup thread when it's done
+        :param parent: the parent widget where the loading UI is created
         """
         self.parent = parent
         self._running = True
@@ -23,11 +22,9 @@ class LoadingScreen:
 
         # Load and display background
         try:
-            bg_image = Image.open(BG_PATH)
-            bg_image = bg_image.resize((400, 300))
+            bg_image = Image.open(BG_PATH).resize((400, 300))
             self.bg_photo = ImageTk.PhotoImage(bg_image)
-            bg_label = tk.Label(self.loading_frame, image=self.bg_photo)
-            bg_label.pack()
+            tk.Label(self.loading_frame, image=self.bg_photo).pack()
         except Exception as e:
             print(f"Error loading background: {e}")
             self.loading_frame.configure(bg="white")
@@ -37,10 +34,9 @@ class LoadingScreen:
         self.loading_canvas.pack(pady=(20, 5))  # Reduced bottom padding
 
         # Add loading text
-        self.loading_text = tk.Label(
+        tk.Label(
             self.loading_frame, text="Loading...", font=("Comic Sans MS", 16)
-        )
-        self.loading_text.pack(pady=(0, 20))
+        ).pack(pady=(0, 20))
 
         # Initialize loading animation
         self.angle = 60

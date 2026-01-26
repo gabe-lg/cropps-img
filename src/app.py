@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import sys
@@ -7,13 +6,16 @@ import time
 import tkinter as tk
 import tkinter.messagebox
 from pathlib import Path
-from tkinter.scrolledtext import ScrolledText
 
 import cv2
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from src.camera import Camera
-from src.loading_screen import LoadingScreen
+# Paths
+ASSETS_PATH = Path(__file__).parent.parent / "assets"
+WATERMARK_PATH = ASSETS_PATH / "cropps_watermark_dark.png"
+ICO_PATH = ASSETS_PATH / "CROPPS_vertical_logo.png"
+BG_PATH = ASSETS_PATH / "cropps_background.png"
 
 # Ensure project root is on sys.path when running this file directly
 if __name__ == "__main__" or __package__ is None:
@@ -21,26 +23,17 @@ if __name__ == "__main__" or __package__ is None:
     if _project_root not in sys.path:
         sys.path.insert(0, _project_root)
 
+from src.camera import Camera
+from src.loading_screen import LoadingScreen
+from src.chatbox import Chatbox
+from src.trigger import Trigger
+from src.image_analysis import start_analysis, stop_analysis
 import src.analyzer
 import src.cutter_control
 import src.loggernet
 
-from src.capture_task import CaptureTask
-from src.trigger import Trigger
-from src.image_analysis import image_analysis
-from src.remote_image_analysis import remote_image_analysis
-from PIL import Image, ImageDraw, ImageFont, ImageTk
-
 DLL_PATH = str(Path(__file__).parent.parent / "dlls")
-sys.path.insert(0, DLL_PATH)
-from windows_setup import configure_path
-from lib.image_queue import ImageAcquisitionThread, TLCameraSDK
-
-# Paths
-ASSETS_PATH = Path(__file__).parent.parent / "assets"
-WATERMARK_PATH = ASSETS_PATH / "cropps_watermark_dark.png"
-ICO_PATH = ASSETS_PATH / "CROPPS_vertical_logo.png"
-BG_PATH = ASSETS_PATH / "cropps_background.png"
+from dlls.windows_setup import configure_path
 
 configure_path(DLL_PATH)
 
@@ -67,16 +60,11 @@ class CameraApp(tk.Tk):
         self._last_msg_history = []
         self._parse_args(argv)
 
-        self.setup_ok_event = threading.Event()
-
-        try:
-            self.camera = Camera(self.setup_ok_event)
-            threading.Thread(target=self.camera.setup).start()
-            self.loading_screen = LoadingScreen(self)
-            self._setup_ui_after_camera()
-        except RuntimeError as e:
-            print(e)
-            self.quit()
+        self._setup_ok_event = threading.Event()
+        self.camera = Camera(self._setup_ok_event)
+        threading.Thread(target=self.camera.setup).start()
+        self.loading_screen = LoadingScreen(self)
+        self._setup_ui_after_camera()
 
     def quit(self):
         print("Exiting...")
@@ -96,37 +84,29 @@ class CameraApp(tk.Tk):
         """Update the camera feed in the GUI window."""
         # === Main camera (self.camera) ===
         # Get latest image from camera
-        if self.camera:
-            try:
-                self.pil_image = \
-                    self.camera.image_acquisition_thread.get_output_queue().queue[-1]
-            except IndexError:
-                # queue is empty
-                pass
+        try:
+            pil_image = self.camera.latest_image()
+        except IndexError:
+            self.after(10, self.update_camera_feed)
+            return
+        self.imgtk = ImageTk.PhotoImage(image=pil_image)
 
-            # Resize to fit canvas
-            canvas_width = self.canvas.winfo_width()
-            canvas_height = self.canvas.winfo_height()
+        # Resize to fit canvas
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        pil_image.thumbnail(
+            (canvas_width, canvas_height), Image.Resampling.LANCZOS)
 
-            if not hasattr(self, "pil_image"):
-                print("Waiting for image...")
-                self.after(10, self.update_camera_feed)
-                return
+        self.canvas.delete("all")
 
-            self.pil_image = self.pil_image.copy().convert("L")
-            self.pil_image.thumbnail(
-                (canvas_width, canvas_height), Image.Resampling.LANCZOS)
-            self.imgtk = ImageTk.PhotoImage(image=self.pil_image)
-            self.canvas.delete("all")
+        x = (canvas_width - pil_image.width) // 2
+        y = (canvas_height - pil_image.height) // 2
+        self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
-            x = (canvas_width - self.pil_image.width) // 2
-            y = (canvas_height - self.pil_image.height) // 2
-            self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
-
-            # Update histogram if frame exists
-            # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
-            #     0)
-            # self.loggernet_canvas.draw_idle()
+        # Update histogram if frame exists
+        # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
+        #     0)
+        # self.loggernet_canvas.draw_idle()
 
         # === GRAPHS ===
         if self.show_graph:
@@ -166,242 +146,41 @@ class CameraApp(tk.Tk):
     ## main functions for buttons ##
     def start_stop_recording(self):
         """Start recording video."""
-        if self.recording:
-            self.start_record_button.config(text="Start recording")
-            self.camera.image_acquisition_thread.start_stop_recording(False)
-            self.recording = False
+        return self.camera.start_stop_recording(self.start_record_button)
 
-            print("Video recording stopped.")
-            return
-
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        folder_path = Path(
-            __file__).parent.parent / "saves" / f"recordings_{timestamp}"
-        folder_path.mkdir(parents=True)
-
-        self.start_record_button.config(text="Stop recording")
-        self.camera.image_acquisition_thread.image_dir = folder_path
-        self.camera.image_acquisition_thread.start_stop_recording(True)
-        self.recording = True
-
-        print(f"Video recording started. Folder: {folder_path}")
-        return folder_path
-
-    def start_analysis(self, prefix=None):
-        assert not self.recording
-
+    def start_analysis(self):
+        assert not self.camera.recording
         self.screenshot_directory = self.start_stop_recording()
-        self.screenshot_directory.mkdir(parents=True, exist_ok=True)
-        self.capture_task = CaptureTask(self.camera, self.screenshot_directory)
-        self.capture_task.start()
 
-        if hasattr(self, "start_analysis_button"):
-            self.start_analysis_button.config(
-                text="Stop Analysis", fg="darkred", command=self.stop_analysis)
+        self.capture_task = start_analysis(
+            self.camera, self.screenshot_directory, self.start_analysis_button
+            if hasattr(self, "start_analysis_button") else None,
+            self.stop_analysis)
 
     def stop_analysis(self):
-        if not (self.recording and self.capture_task): return
+        if not (self.camera.recording and self.capture_task): return
 
         if self.capture_task.is_alive():
             self.capture_task.stop()
             self.capture_task.join()
 
-        if hasattr(self, "start_analysis_button"):
-            self.start_analysis_button.config(
-                text="Start Analysis", fg="darkgreen",
-                command=self.start_analysis)
-
         self.start_stop_recording()
 
-        # variable to control remote/local analysis
-        REMOTE = False
+        stop_analysis(self.sms_sender, self.screenshot_directory,
+                      self.start_analysis_button
+                      if hasattr(self, "start_analysis_button") else None,
+                      self.start_analysis)
 
-        # Show a non-blocking "waiting" message
-        waiting_win = tk.Toplevel()
-        waiting_win.title("Please wait")
-        tk.Label(
-            waiting_win,
-            text=f"Running {"remote" if REMOTE else "local"} analysis...\nThis may take a while.",
-        ).pack(padx=30, pady=30)
-
-        @threaded
-        def worker():
-            try:
-                if REMOTE:
-                    result = remote_image_analysis(self.screenshot_directory)
-                else:
-                    print(self.screenshot_directory)
-                    result = image_analysis(self.screenshot_directory)
-
-                if self.sms_sender.phone:
-                    match result.lower().strip():
-                        case "current injection":
-                            self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["trigger"])
-                        case "burn":
-                            self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["burn"])
-                        case _:
-                            self.sms_sender.send_msg(
-                                self.sms_sender.template["detected"]["else"])
-                else:
-                    self.after(0, lambda: tkinter.messagebox.showinfo(
-                        "Analysis Result", f"Detection result: {result}"))
-
-            except Exception as e:
-                self.after(0, lambda: tkinter.messagebox.showerror(
-                    "Analysis Error", f"Failed to analyze images: {e}"))
-            finally:
-                self.after(0, waiting_win.destroy)
-
-        worker()
         self.capture_task = None
 
     def sms_info(self):
-        sms_dialog = tk.Toplevel(self)
-        sms_dialog.title("Enter SMS Details")
-        sms_dialog.config(bg="white")
-
-        # create label and checkbox for receiving messages
-        receive_sms_var = tk.BooleanVar()
-        receive_sms_label = tk.Label(
-            sms_dialog,
-            text="Would you like to receive text messages from a plant?",
-            font=("TkTextFont", 18),
-            bg="white",
-        )
-        receive_sms_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
-        receive_sms_checkbox = tk.Checkbutton(
-            sms_dialog, variable=receive_sms_var, bg="white"
-        )
-        receive_sms_checkbox.grid(row=0, column=2, padx=10, pady=10)
-
-        # create label and input for the name
-        name_label = tk.Label(
-            sms_dialog, text="Enter name: ", font=("TkTextFont", 18), bg="white"
-        )
-        name_label.grid(row=1, column=0, padx=10, pady=10)
-        name_entry = tk.Entry(sms_dialog)
-        name_entry.grid(row=1, column=1, padx=10, pady=10)
-
-        # create label and input for the phone number
-        contact_label = tk.Label(
-            sms_dialog, text="Enter phone number: ", font=("TkTextFont", 18),
-            bg="white"
-        )
-        contact_label.grid(row=2, column=0, padx=10, pady=10)
-        contact_entry = tk.Entry(sms_dialog)
-        contact_entry.grid(row=2, column=1, padx=10, pady=10)
-
-        # Label for displaying error messages
-        error_label = tk.Label(
-            sms_dialog, text="", fg="red", font=("TkTextFont", 18), bg="white"
-        )
-        error_label.grid(row=3, column=0, columnspan=2, padx=12, pady=10)
-
-        def send_info():
-            name = name_entry.get()
-            contact = contact_entry.get()
-
-            # Only set contact info if the checkbox is checked
-            if receive_sms_var.get():
-                if not name or not contact:
-                    error_label.config(
-                        text="Please provide a name and phone number.")
-                else:
-                    self.sms_sender.set_info(name, contact)
-
-                    try:
-                        for i in range(len(text :=
-                                           self.sms_sender.template[
-                                               "initial_text"][
-                                               "current"])):
-                            self.sms_sender.send_msg(text[i])
-                    except RuntimeError as e:
-                        tkinter.messagebox.showerror(
-                            "Error", f"Could not send message: {e}")
-                    finally:
-                        sms_dialog.destroy()
-            else:
-                error_label.config(
-                    text="Please check the box and provide all details.")
-
-        # Create Save button
-        save_button = tk.Button(sms_dialog, text="Save", command=send_info)
-        save_button.grid(row=4, column=0, padx=10, pady=10)
-
-        # Create Cancel button
-        cancel_button = tk.Button(sms_dialog, text="Cancel",
-                                  command=sms_dialog.destroy)
-        cancel_button.grid(row=4, column=1, padx=10, pady=10)
-
-        sms_dialog.bind("<Return>", lambda _: send_info())
-        self.bind("<Escape>", lambda _: sms_dialog.destroy())
-
-        image = tk.PhotoImage(file=BG_PATH)
-        image_label = tk.Label(sms_dialog, image=image)
-        image_label.grid(row=5, column=0, columnspan=2, padx=2, pady=10)
-        image_label.image = image
-
-        sms_dialog.mainloop()
+        self.sms_sender.show_dialog(tk.Toplevel(self))
 
     def show_exposure_dialog(self):
-        def apply():
-            exposure_value = int(exposure_entry.get()) * 1000
-            # For old SDK:
-            # exposure_value = Q_(float(exposure_entry.get()), "millisecond")
-            self.camera.exposure_time_us = exposure_value
-            dialog.destroy()
-            (
-                tkinter.messagebox.showinfo(
-                    "Exposure",
-                    "Exposure set to "
-                    f"{round(self.camera.exposure_time_us / 1000, 2)}ms"
-                )
-            )
-
-        dialog = tk.Toplevel(self)
-        dialog.title("Exposure Settings")
-        dialog.geometry("400x150")
-        dialog.resizable(False, False)
-
-        content_frame = tk.Frame(dialog)
-        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        current_label = tk.Label(
-            content_frame,
-            text=f"Current Exposure: {self.camera.exposure_time_us / 1000}ms"
-        )
-        current_label.pack(pady=(0, 10))
-
-        input_frame = tk.Frame(content_frame)
-        input_frame.pack(fill="x", pady=5)
-
-        tk.Label(input_frame, text="New exposure:").pack(side="left")
-        exposure_entry = tk.Entry(input_frame, width=25)
-        exposure_entry.pack(side="left", padx=10)
-        tk.Label(input_frame, text="milliseconds").pack(side="left", padx=2)
-
-        button_frame = tk.Frame(content_frame)
-        button_frame.pack()
-
-        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
-                  width=10).pack(
-            side="left", padx=5
-        )
-
-        exposure_entry.bind("<Return>", lambda e: apply())
-
-        # Center the dialog on the main window
-        dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (
-                dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (
-                dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
+        self.camera.show_exposure_dialog(
+            tk.Toplevel(self),
+            self.winfo_x(), self.winfo_y(),
+            self.winfo_width(), self.winfo_height())
 
     def save_graph(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -517,71 +296,40 @@ class CameraApp(tk.Tk):
             new_msg = self.sms_sender.new_msgs.get()
 
         print("Message received:", new_msg)
+
         # Magic number here: analysis timeout
         analysis_timeout = 20
-        def start_timer():
-            threading.Thread(target=self.capture_task.start_timer,
-                             args=(analysis_timeout, self.stop_analysis),
-                             daemon=True).start()
 
         try:
+            self.sms_sender.send_msg_after_message(new_msg, tk.Toplevel(self))
+            self.trigger.execute_trigger(new_msg)
+
             # I just found out python has pattern matching!!!!!
             match new_msg:
-                case "current injection" | '1':
-                    self.sms_sender.send_msg(
-                        self.sms_sender.template["received"]["trigger"])
-
-                    if not hasattr(self, "injection_duration") or not hasattr(self, "injection_amplitude"):
-                        raise ValueError("Parameters not set")
-                        # TODO: or possibly set default values here
-
-                    self.trigger.injection(self.current_injection_port, self.injection_duration, self.injection_amplitude)
-                    start_timer()
-
-                case "burn" | '2':
-                    self.sms_sender.send_msg(
-                        self.sms_sender.template["received"]["burn"])
-
-                    if not hasattr(self, "burn_duration"):
-                        raise ValueError("Burn duration not set")
-                        # TODO: or possibly set a default value here
-
-                    self.trigger.burn("COM" + str(self.burn_port_com), self.burn_duration)
-                    start_timer()
-                # TODO: more cases here
-
+                case "current injection" | '1' | "burn" | '2':
+                    threading.Thread(
+                        target=self.capture_task.start_timer,
+                        args=(analysis_timeout, self.stop_analysis),
+                        daemon=True).start()
                 case "cutter":
                     threading.Thread(
                         target=src.cutter_control.cutter_app).start()
-
-                case "sms":
-                    self.sms_info()
-
-                case "stop" | 's':
-                    if self.capture_task:
-                        self.sms_sender.send_msg(
-                            self.sms_sender.template["received"]["stop"]["ok"])
-                        self.stop_analysis()
-                    else:
-                        self.sms_sender.send_msg(self.sms_sender.template
-                                                 ["received"]["stop"]["error"])
-
                 case "quit" | 'q':
-                    self.sms_sender.send_msg(
-                        self.sms_sender.template["received"]["quit"])
+                    self.send_msg(self.template["received"]["quit"])
                     self.quit()
-
-                case _:
-                    self.sms_sender.send_msg(
-                        self.sms_sender.template["received"]["else"])
         except Exception as e:
-            tkinter.messagebox.showerror("Error",
-                                         f"An error occurred while running external script: {e}")
+            tkinter.messagebox.showerror("Error", f"An error occurred while "
+                                                  f"attempting to execute trigger: {e}")
 
     @threaded
     def _init_sms_receiver(self):
+        threading.Thread(target=self.sms_sender.read_msg,
+                         daemon=True).start()
         print("Message observer started")
-        self._poll_messages()
+        print("[poll_messages]: Process spawned")
+        while True:
+            self.chatbox.poll_messages(self._execute_trigger,
+                                       self.truncate_msgs)
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -593,63 +341,6 @@ class CameraApp(tk.Tk):
                 self.watermark = self.watermark.convert("RGBA")
         else:
             self.watermark = Image.new("RGBA", (200, 100))
-
-    @threaded
-    def _poll_messages(self):
-        """Periodically refresh chatbox with updated message history."""
-        print("[poll_messages]: process spawned")
-        while True:
-            print("[poll_messages]: waiting")
-            self.sms_sender.msg_changed_event.wait()
-            self.sms_sender.msg_changed_event.clear()
-            print("[poll_messages]: finished waiting")
-
-            try:
-                if self.sms_sender.new_msg_event.is_set():
-                    self.sms_sender.new_msg_event.clear()
-                    self._execute_trigger()
-
-                if self.sms_sender and self.sms_sender.phone:
-                    msgs = self.sms_sender.get_msg_history(
-                        self.sms_sender.phone)
-
-                    # Only update if there’s new content
-                    # UPDATE v2.1.0: added `wait` above.
-                    # This checks for correct phone number
-                    if msgs != getattr(self, "_last_msg_history", []):
-                        self._last_msg_history = msgs
-                        self._refresh_chatbox(msgs)
-
-            except Exception as e:
-                print("Error polling messages:", e)
-
-    def _refresh_chatbox(self, msgs):
-        """Replace chatbox content with current message history."""
-        self.chatbox.configure(state="normal")
-        self.chatbox.delete("1.0", "end")
-
-        # Message color
-        self.chatbox.tag_config('r', foreground="red")
-        self.chatbox.tag_config('b', foreground="blue")
-
-        for m in msgs:
-            sender = "You" if m["type"] == "sent" \
-                else self.sms_sender.name or "Contact"
-            tag = 'b' if m["type"] == "sent" else 'r'
-            ts = time.strftime("%H:%M:%S",
-                               time.localtime(m["timestamp"] / 1000))
-
-            body = m["body"]
-
-            # truncate input (magic number)
-            max_length = 64
-
-            if self.truncate_msgs and len(body) > max_length:
-                body = body[:max_length] + "..."
-            self.chatbox.insert("end", f"[{ts}]\n{sender}:\n{body}\n\n", tag)
-
-        self.chatbox.configure(state="disabled")
-        self.chatbox.yview("end")
 
     def _setup_canvases(self):
         # --- Main frame to hold camera (left) + logger (right) ---
@@ -763,9 +454,7 @@ class CameraApp(tk.Tk):
 
             # ScrolledText for chat messages
             # font size for chatbox (magic number)
-            self.chatbox = ScrolledText(chat_frame, wrap="word",
-                                        state="disabled",
-                                        font=("Segoe UI Emoji", 20))
+            self.chatbox = Chatbox(chat_frame, self.sms_sender)
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
         else:
             # Image of a screen
@@ -783,11 +472,7 @@ class CameraApp(tk.Tk):
                                     image=imgtk)
 
                 # ScrolledText for chat messages
-                self.chatbox = ScrolledText(chat_frame, wrap="word",
-                                            state="disabled",
-                                            font=("Segoe UI Emoji", 20),
-                                            bg=self["bg"],
-                                            bd=0)
+                self.chatbox = Chatbox(chat_frame, self.sms_sender)
 
                 # dimensions of chatbox (magic numbers)
                 chatbox_width = imgtk.width() * .4
@@ -823,14 +508,17 @@ class CameraApp(tk.Tk):
     def _setup_ui_after_camera(self):
         """Setup UI after camera initialization"""
         # Remove loading screen
-        if not self.setup_ok_event.is_set():
+        if self.camera.setup_failed_event.is_set():
+            print(self.camera.err)
+            self.quit()
+
+        if not self._setup_ok_event.is_set():
             self.after(50, self._setup_ui_after_camera)
             return
 
         self.loading_screen.__del__()
 
         # Continue with regular UI setup
-        self.recording = False
         self.video_writer = None
         self.analyzing = False
         self.capture_task = None
@@ -862,85 +550,9 @@ class CameraApp(tk.Tk):
         self.update_camera_feed()
 
     def _show_trigger_settings(self):
-        def apply_trigger():
-            for name, entry in all_entries:
-                name = name.replace(' ', '_').replace(':', '').lower()
-                value = entry.get().strip()
-                if value:
-                    setattr(self, name, value)
-                    print(f"[INFO] Attribute \"{name}\" set to {value}")
-            dialog.destroy()
-
-        dialog = tk.Toplevel(self)
-        dialog.title("Set Serial Ports")
-        dialog.geometry("320x500")
-        dialog.resizable(False, False)
-
-        # TODO: scrollbar is not bound to the whole window
-
-        canvas = tk.Canvas(dialog)
-        scrollbar = tk.Scrollbar(dialog, orient="vertical",
-                                 command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        # Create a frame inside the canvas to contain the message
-        content_frame = tk.Frame(canvas)
-        canvas.create_window((10, 10), window=content_frame, anchor="nw")
-
-        # ---- Create entries ----
-        os.chdir(ASSETS_PATH)
-        with open("trigger_func.json") as f:
-            s = json.load(f)
-
-        all_entries = []
-        for key, setting in s.items():
-            tk.Label(content_frame, text=setting["title"]).pack()
-
-            for i in setting["items"]:
-                frame = tk.Frame(content_frame)
-                entry = tk.Entry(frame, width=25)
-                entry.pack(side="right", padx=2)
-                entry.bind("<Return>", lambda _: apply_trigger())
-                frame.pack(fill="x", pady=5)
-                tk.Label(frame, text=i).pack(side="right")
-                all_entries.append((i, entry))
-
-            for name, msg in setting["buttons"].items():
-                frame = tk.Frame(content_frame)
-                frame.pack(fill="x", pady=5)
-                tk.Button(frame, text=name,
-                          command=lambda msg=msg: [apply_trigger(), self._execute_trigger(msg)],
-                          width=10).pack()
-
-        # ---- Error Label ----
-        error_label = tk.Label(content_frame, text="", fg="red")
-        error_label.pack()
-
-        # ---- Buttons ----
-        button_frame = tk.Frame(content_frame)
-        button_frame.pack(pady=10)
-        tk.Button(button_frame, text="Apply", command=apply_trigger,
-                  width=10).pack(side="left", padx=5)
-
-        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
-                  width=10).pack(
-            side="left", padx=5
-        )
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # Update the scrollable region of the canvas
-        content_frame.update_idletasks()
-        canvas.config(scrollregion=canvas.bbox("all"))
-
-        # ---- Center the dialog ----
-        dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (
-                dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (
-                dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
+        self.trigger.show_settings(tk.Toplevel(self), self._execute_trigger,
+                                   self.winfo_x(), self.winfo_y(),
+                                   self.winfo_width(), self.winfo_height())
 
     def _parse_args(self, argv):
         # Using argv here:

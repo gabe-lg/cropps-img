@@ -1,8 +1,14 @@
 import os
+import threading
+import tkinter as tk
+import tkinter.messagebox
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+
+from src.capture_task import CaptureTask
+from src.remote_image_analysis import remote_image_analysis
 
 # Image dimensions
 IMAGE_WIDTH = 1440
@@ -19,6 +25,57 @@ THRESHOLD_INJECTION = 10000  # Pixels 50-10000: Current injection
 
 # Flag to enable/disable figure creation
 CREATE_FIGURE = True
+
+
+def start_analysis(camera, directory, button, command):
+    directory.mkdir(parents=True, exist_ok=True)
+    capture_task = CaptureTask(camera, directory)
+    capture_task.start()
+
+    if button:
+        button.config(text="Stop Analysis", fg="darkred",
+                      command=command)
+
+    return capture_task
+
+
+def stop_analysis(sms_sender, directory, button, command):
+    if button:
+        button.config(
+            text="Start Analysis", fg="darkgreen",
+            command=command)
+
+    # variable to control remote/local analysis
+    REMOTE = False
+
+    # Show a non-blocking "waiting" message
+    waiting_win = tk.Toplevel()
+    waiting_win.title("Please wait")
+    tk.Label(
+        waiting_win,
+        text=f"Running {"remote" if REMOTE else "local"} analysis...\nThis may take a while.",
+    ).pack(padx=30, pady=30)
+
+    def worker():
+        try:
+            if REMOTE:
+                result = remote_image_analysis(directory)
+            else:
+                print(directory)
+                result = image_analysis(directory)
+
+            try:
+                sms_sender.send_msg_after_analysis(result)
+            except RuntimeError:
+                waiting_win.after(0, lambda: tkinter.messagebox.showinfo(
+                    "Analysis Result", f"Detection result: {result}"))
+        except Exception as e:
+            waiting_win.after(0, lambda e=e: tkinter.messagebox.showerror(
+                "Analysis Error", f"Failed to analyze images: {e}"))
+        finally:
+            waiting_win.after(0, waiting_win.destroy)
+
+    threading.Thread(target=worker).start()
 
 
 def plot_pixel_counts_vs_prev(pixel_counts_prev, screenshot_directory):

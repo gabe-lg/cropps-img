@@ -25,6 +25,7 @@ assets/data.csv
 !assets/
 
 # Release
+dlls
 release/*
 !release/*.cmd
 !release/*.md
