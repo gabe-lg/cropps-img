@@ -108,10 +108,7 @@ class CameraApp(tk.Tk):
 
         # === GRAPHS ===
         if self.show_graph:
-            self.histogram.update(frame)
-            self.canvas.create_rectangle(0, 0, self.canvas.winfo_width(),
-                                         self.canvas.winfo_height(),
-                                         fill="black", outline="")
+            self.histogram.update(pil_image)
             self.histogram_canvas.draw_idle()
 
         # === OpenCV webcam feed (self.cap) ===
