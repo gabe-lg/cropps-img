@@ -1,12 +1,9 @@
 import json
 import os
-import sys
 import threading
 import tkinter as tk
-from pathlib import Path
 
-import src
-from src.app import ASSETS_PATH
+from src.app import DATA_PATH
 from src.tools.triggers import *
 
 
@@ -70,8 +67,7 @@ class Trigger:
         canvas.create_window((10, 10), window=content_frame, anchor="nw")
 
         # ---- Create entries ----
-        os.chdir(ASSETS_PATH)
-        with open("trigger_func.json") as f:
+        with open(str(DATA_PATH / "trigger_func.json")) as f:
             s = json.load(f)
 
         all_entries = []

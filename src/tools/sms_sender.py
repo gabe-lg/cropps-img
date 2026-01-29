@@ -8,9 +8,8 @@ import threading
 import time
 import tkinter as tk
 import tkinter.messagebox
-from pathlib import Path
 
-from src.app import BG_PATH
+from src.app import BG_PATH, ROOT_PATH, DATA_PATH
 
 
 def fix_encoding(data):
@@ -25,7 +24,7 @@ def fix_encoding(data):
 class SmsSender:
     def __init__(self):
         # The path where adb was installed
-        self.dir = str(Path(__file__).parent.parent.parent / "platform-tools")
+        self.dir = str(ROOT_PATH / "platform-tools")
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
@@ -37,7 +36,7 @@ class SmsSender:
         self.init_ms = int(time.time() * 1000)
 
         # messages to send
-        with open('assets/sms_template.json') as f:
+        with open(str(DATA_PATH / "sms_template.json")) as f:
             self.template = json.load(f)
 
         oldpwd = os.getcwd()

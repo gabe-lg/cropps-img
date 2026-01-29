@@ -2,9 +2,9 @@ import threading
 import time
 import tkinter as tk
 import tkinter.messagebox
-from pathlib import Path
 
 from dlls.thorlabs_tsi_sdk.tl_camera import TLCameraSDK
+from src.app import ROOT_PATH
 from src.tools.image_queue import ImageAcquisitionThread
 
 SAVE_FREQ = 3
@@ -130,7 +130,7 @@ class Camera:
             return None
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        folder_path = Path(__file__).parent.parent.parent / "saves" / f"recordings_{timestamp}"
+        folder_path = ROOT_PATH / "saves" / f"recordings_{timestamp}"
         folder_path.mkdir(parents=True)
 
         button.config(text="Stop recording")

@@ -12,10 +12,18 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Paths
-ASSETS_PATH = Path(__file__).parent.parent / "assets"
+ROOT_PATH = Path(__file__).parent.parent
+
+ASSETS_PATH = ROOT_PATH / "assets"
 WATERMARK_PATH = ASSETS_PATH / "cropps_watermark_dark.png"
 ICO_PATH = ASSETS_PATH / "CROPPS_vertical_logo.png"
 BG_PATH = ASSETS_PATH / "cropps_background.png"
+
+DATA_PATH = ROOT_PATH / "src" / "data"
+DLL_PATH = ROOT_PATH / "dlls"
+from dlls.windows_setup import configure_path
+
+configure_path(str(DLL_PATH))
 
 from src.analysis.image_analysis import start_analysis, stop_analysis
 from src.tools.cutter_control import cutter_app
@@ -24,13 +32,8 @@ from src.tools.sms_sender import SmsSender
 from src.tools.trigger import Trigger
 from src.ui.camera import Camera
 from src.ui.chatbox import Chatbox
+from src.ui.histogram import Histogram
 from src.ui.loading_screen import LoadingScreen
-import archive.analyzer  # TODO
-
-DLL_PATH = str(Path(__file__).parent.parent / "dlls")
-from dlls.windows_setup import configure_path
-
-configure_path(DLL_PATH)
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
@@ -179,14 +182,13 @@ class CameraApp(tk.Tk):
 
     def save_graph(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        file_name = Path(
-            __file__).parent.parent / "saves" / f"graph_{timestamp}.png"
+        file_name = ROOT_PATH / "saves" / f"graph_{timestamp}.png"
         file_name.parent.mkdir(parents=True, exist_ok=True)
         self.histogram.fig.savefig(file_name)
 
     def open_pattern_app(self):
         try:
-            os.chdir(Path(__file__).parent.parent.parent)
+            os.chdir(ROOT_PATH)
             subprocess.Popen(['python', 'cropps-pattern/main.py'])
             print("[INFO] Pattern app started")
         except Exception as e:
@@ -557,15 +559,12 @@ class CameraApp(tk.Tk):
             if arg.startswith('-'):
                 if 'b' in arg:
                     self.show_buttons = True
-                elif 'g' in arg:
+                if 'g' in arg:
                     self.show_graph = True
-                elif 't' in arg:
+                if 't' in arg:
                     self.truncate_msgs = True
-                elif 'w' in arg:
+                if 'w' in arg:
                     self.show_webcam = True
-                else:
-                    print("Unknown argument: ", arg)
-                    os.kill(os.getpid(), 2)
             elif arg.startswith("--"):
                 match arg:
                     case "--show-buttons":
