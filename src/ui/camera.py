@@ -130,8 +130,7 @@ class Camera:
             return None
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        folder_path = Path(
-            __file__).parent.parent / "saves" / f"recordings_{timestamp}"
+        folder_path = Path(__file__).parent.parent.parent / "saves" / f"recordings_{timestamp}"
         folder_path.mkdir(parents=True)
 
         button.config(text="Stop recording")

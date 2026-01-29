@@ -448,7 +448,7 @@ class CameraApp(tk.Tk):
 
             # ScrolledText for chat messages
             # font size for chatbox (magic number)
-            self.chatbox = Chatbox(chat_frame, self.sms_sender)
+            self.chatbox = Chatbox(chat_frame, self.sms_sender, self["bg"])
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
         else:
             # Image of a screen
@@ -466,7 +466,7 @@ class CameraApp(tk.Tk):
                                     image=imgtk)
 
                 # ScrolledText for chat messages
-                self.chatbox = Chatbox(chat_frame, self.sms_sender)
+                self.chatbox = Chatbox(chat_frame, self.sms_sender, self["bg"])
 
                 # dimensions of chatbox (magic numbers)
                 chatbox_width = imgtk.width() * .4
@@ -521,7 +521,7 @@ class CameraApp(tk.Tk):
         self.current_injection_port_com = 3
         self.burn_port_com = 4
 
-        self.histogram = archive.analyzer.Histogram()
+        self.histogram = Histogram()
         self.sms_sender = SmsSender()
         self.trigger = Trigger(pre_trigger_func=self.start_analysis)
 

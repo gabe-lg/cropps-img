@@ -3,10 +3,11 @@ from tkinter.scrolledtext import ScrolledText
 
 
 class Chatbox(ScrolledText):
-    def __init__(self, chat_frame, sms_sender):
+    def __init__(self, chat_frame, sms_sender, bg):
         super().__init__(chat_frame, wrap="word",
-                                        state="disabled",
-                                        font=("Segoe UI Emoji", 20))
+                         state="disabled",
+                         font=("Segoe UI Emoji", 20),
+                         bg=bg, bd=0)
         self.sms_sender = sms_sender
 
     def poll_messages(self, exec_func, truncate_msgs):

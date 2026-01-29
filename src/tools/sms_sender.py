@@ -25,7 +25,7 @@ def fix_encoding(data):
 class SmsSender:
     def __init__(self):
         # The path where adb was installed
-        self.dir = str(Path(__file__).parent.parent / "platform-tools")
+        self.dir = str(Path(__file__).parent.parent.parent / "platform-tools")
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
