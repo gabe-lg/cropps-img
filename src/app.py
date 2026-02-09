@@ -61,7 +61,6 @@ class CameraApp(tk.Tk):
         self.state("zoomed")
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
-        self.threads = []
         self._last_msg_history = []
 
         # Show loading screen in main window
@@ -92,8 +91,6 @@ class CameraApp(tk.Tk):
         # Initialize loading animation
         self.angle = 60
         self._animate_loading()
-        self.current_injection_port = "COM3"
-        self.burn_port = "COM4"
 
         self._parse_args(argv)
 
@@ -127,6 +124,7 @@ class CameraApp(tk.Tk):
         # === Main camera (self.camera) ===
         if not hasattr(self, "camera"): return
 
+        # Get latest image from camera
         if self.camera:
             try:
                 self.pil_image = \
@@ -138,6 +136,12 @@ class CameraApp(tk.Tk):
             # Resize to fit canvas
             canvas_width = self.canvas.winfo_width()
             canvas_height = self.canvas.winfo_height()
+
+            if not hasattr(self, "pil_image"):
+                print("Waiting for image...")
+                self.after(10, self.update_camera_feed)
+                return
+
             self.pil_image = self.pil_image.copy().convert("L")
             self.pil_image.thumbnail(
                 (canvas_width, canvas_height), Image.Resampling.LANCZOS)
@@ -224,7 +228,7 @@ class CameraApp(tk.Tk):
                 text="Stop Analysis", fg="darkred", command=self.stop_analysis)
 
     def stop_analysis(self):
-        assert self.recording and self.capture_task
+        if not (self.recording and self.capture_task): return
 
         if self.capture_task.is_alive():
             self.capture_task.stop()
@@ -578,7 +582,7 @@ class CameraApp(tk.Tk):
                         raise ValueError("Burn duration not set")
                         # TODO: or possibly set a default value here
 
-                    self.trigger.burn(self.burn_port, self.burn_duration)
+                    self.trigger.burn("COM" + str(self.burn_port_com), self.burn_duration)
                     start_timer()
                 # TODO: more cases here
 
@@ -897,6 +901,8 @@ class CameraApp(tk.Tk):
         self.analyzing = False
         self.capture_task = None
         self.imgtk = None
+        self.current_injection_port_com = 3
+        self.burn_port_com = 4
 
         self.histogram = src.analyzer.Histogram()
         self.sms_sender = src.sms_sender.SmsSender()
@@ -969,7 +975,7 @@ class CameraApp(tk.Tk):
                 frame = tk.Frame(content_frame)
                 frame.pack(fill="x", pady=5)
                 tk.Button(frame, text=name,
-                          command=lambda msg=msg: self._execute_trigger(msg),
+                          command=lambda msg=msg: [apply_trigger(), self._execute_trigger(msg)],
                           width=10).pack()
 
         # ---- Error Label ----

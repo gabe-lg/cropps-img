@@ -1,9 +1,12 @@
+#include <stdlib.h>
+
 #define LIGHTER_PIN 7    // Plasma lighter relay (active-low)
 
 
 bool lighterActive = false;
 unsigned long lighterStartTime = 0;
 // const unsigned long LIGHTER_DURATION = 3500;  // XXX-milisecond pulse for lighter
+unsigned long duration;
 
 void setup() {
   Serial.begin(9600);  // Start serial communication
@@ -20,17 +23,20 @@ void loop() {
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     command.trim();
+    
+    duration = strtoul(command.c_str(), NULL, 10);
+    Serial.println(duration);
 
   // validate input
-  if (!std::istringstream(std::string(1, command)).eof() >> duration ||
-    duration > ULONG_MAX) {
-    Serial.println("Invalid input");
-    return;
-  }
+//  if (!std::istringstream(std::string(1, command)).eof() >> duration ||
+//    duration > ULONG_MAX) {
+//    Serial.println("Invalid input");
+//    return;
+//  }
 
   // Lighter manual pulse trigger (active-low)
   //      if (command == "L1" && !lighterActive) {
-  if (command == "L1" && !lighterActive) {
+  if (!lighterActive) {
       digitalWrite(LIGHTER_PIN, LOW);  // Activate lighter
       lighterActive = true;
       lighterStartTime = currentTime;
@@ -39,6 +45,11 @@ void loop() {
   }
 
   // Lighter auto-off after Xs (active-low)
+  Serial.println("---------------");
+  Serial.println(currentTime);
+  Serial.println(lighterStartTime);
+  Serial.println(duration);
+  Serial.println((currentTime - lighterStartTime >= duration));
   if (lighterActive && (currentTime - lighterStartTime >= duration)) {
     digitalWrite(LIGHTER_PIN, HIGH);  // Deactivate lighter
     lighterActive = false;

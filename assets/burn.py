@@ -8,7 +8,7 @@ except ModuleNotFoundError:
 BAUD_RATE = 9600
 
 
-def main(port: int, duration: float):
+def main(port: int, duration: float = 2):
     """
     :param port: serial port number
     :param duration: lighter duration
@@ -29,7 +29,7 @@ def main(port: int, duration: float):
 
         # Instead of sending 'L1', send the lighter duration
         # TODO: add more parameters here:
-        ser.write(str(duration)+'\n')
+        ser.write((str(duration) + '\n').encode('utf-8'))
         print("Sent command:", duration)
 
         # Read and display Arduino response
