@@ -102,9 +102,8 @@ class CameraApp(tk.Tk):
         self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
         # Update histogram if frame exists
-        # if not self.loggernet.stop_event.is_set(): self.loggernet.update(
-        #     0)
-        # self.loggernet_canvas.draw_idle()
+        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+        self.loggernet_canvas.draw_idle()
 
         # === GRAPHS ===
         if self.show_graph:
@@ -433,7 +432,13 @@ class CameraApp(tk.Tk):
                                                       master=hist_frame)
             self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
 
-        # --- Bottom: Histogram ---
+            # --- Bottom: Histogram ---
+            self.loggernet_frame = tk.Frame(right_frame)
+            self.loggernet_frame.pack(side="bottom", fill="x", pady=(0, 10))
+            self.loggernet_canvas = FigureCanvasTkAgg(self.loggernet.fig,
+                                                      master=self.loggernet_frame)
+            self.loggernet_canvas.get_tk_widget().pack(fill="x", expand=True)
+
         # --- Chatbox ---
         chat_frame = tk.Frame(right_frame, bg="white")
         chat_frame.pack(side="top", fill="both", expand=True, padx=10,
