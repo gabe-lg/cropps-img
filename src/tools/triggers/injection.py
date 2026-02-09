@@ -10,8 +10,8 @@ except ModuleNotFoundError:
 
 # Configuration (adjust as needed)
 BAUD_RATE = 9600
-CURRENT = 40e-6  # Constant current in Amps (e.g., 20 µA)
-MEASUREMENT_TIME = 30  # Total time in seconds
+# amplitude = 40e-6  # Constant current in Amps (e.g., 20 µA)
+# duration = 30  # Total time in seconds
 SAMPLE_INTERVAL = 0.01  # Sampling interval in seconds
 VOLT_COMPLIANCE = 200  # Voltage compliance in V
 
@@ -19,8 +19,16 @@ VOLT_COMPLIANCE = 200  # Voltage compliance in V
 data = []
 
 
-def main(port, duration, amplitude):
-    # FIXME: use `duration` and `amplitude` instead of hardcoding
+def main(port, duration: float = 30, amplitude: float = 40e-6):
+    """
+    Docstring for main
+    
+    :param port: Description
+    :param duration: Description
+    :type duration: Total time in seconds
+    :param amplitude: Constant current in Amps (e.g., 20 µA)
+    :type amplitude: float
+    """
     # Initialize serial connection
     try:
         keithley = serial.Serial(
@@ -66,22 +74,22 @@ def main(port, duration, amplitude):
             time.sleep(0.1)
 
         # Set constant current level
-        keithley.write(f':SOUR:CURR {CURRENT}\n'.encode('utf-8'))
+        keithley.write(f':SOUR:CURR {amplitude}\n'.encode('utf-8'))
         time.sleep(0.1)
 
         # Output ON
         keithley.write(b':OUTP ON\n')
         print(
-            f'Output enabled. Constant current: {CURRENT * 1000:.3f} mA for {MEASUREMENT_TIME} seconds.')
+            f'Output enabled. Constant current: {amplitude * 1000:.3f} mA for {duration} seconds.')
 
         # Main measurement loop
         start_time = time.time()
         sample_count = 0
-        num_samples = int(MEASUREMENT_TIME / SAMPLE_INTERVAL)
+        num_samples = int(duration / SAMPLE_INTERVAL)
         print('Starting measurements... Press Ctrl+C to stop early.')
 
         try:
-            while (time.time() - start_time) < MEASUREMENT_TIME:
+            while (time.time() - start_time) < duration:
                 # Trigger read
                 keithley.write(b':READ?\n')
                 response = keithley.readline().decode('utf-8').strip()

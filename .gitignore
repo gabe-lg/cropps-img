@@ -26,6 +26,7 @@ assets/data.csv
 
 # Release
 dlls
+platform-tools
 release/*
 !release/*.cmd
 !release/*.md

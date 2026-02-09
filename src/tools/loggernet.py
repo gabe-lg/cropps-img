@@ -76,7 +76,7 @@ class Loggernet:
                 (t, d) = time_str, vals
             except Exception as e:
                 print("Error fetching data:", e)
-                break
+                continue
 
             if not (t and d):
                 break

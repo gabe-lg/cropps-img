@@ -524,6 +524,8 @@ class CameraApp(tk.Tk):
         self.imgtk = None
         self.current_injection_port_com = 3
         self.burn_port_com = 4
+        self.current_injection_port_com = 3
+        self.burn_port_com = 4
 
         self.histogram = Histogram()
         self.sms_sender = SmsSender()

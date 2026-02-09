@@ -174,7 +174,7 @@ class SmsSender:
                         raise ValueError("Parameters not set")
                         # TODO: or possibly set default values here
 
-                    self.trigger.injection(self.current_injection_port,
+                    self.trigger.injection(self.current_injection_port_com,
                                            self.injection_duration,
                                            self.injection_amplitude)
                     start_timer()

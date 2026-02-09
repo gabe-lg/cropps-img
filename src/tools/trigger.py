@@ -27,7 +27,7 @@ class Trigger:
                     raise ValueError("Parameters not set")
                     # TODO: or possibly set default values here
 
-                self.injection(self.current_injection_port,
+                self.injection(self.current_injection_port_com,
                                self.injection_duration,
                                self.injection_amplitude)
 
