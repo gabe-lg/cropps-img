@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import requests
 from requests.auth import HTTPBasicAuth
+from src.app import ROOT_PATH
 
 
 class Loggernet:
@@ -59,7 +60,7 @@ class Loggernet:
             url = 'http://192.168.66.1/cr6'
             params = {
                 'command': 'DataQuery',
-                'uri': 'dl:Data_6June2025_gel',
+                'uri': 'dl:Data_Table',
                 'mode': 'most-recent',
                 'p1': 1,
                 'format': 'json'
@@ -91,7 +92,7 @@ class Loggernet:
                     range(len(self.data_list) - 1, -1, -1))
                 self.lines[:] = [i + 1 for i in self.lines]
 
-            with open('./assets/data.csv', 'a', newline='') as file:
+            with open(str(ROOT_PATH / "saves" / "data.csv"), 'a', newline='') as file:
                 csv.writer(file).writerows([[t] + d[:3] + [
                     1 if self.lines and self.lines[-1] == 1 else 0]])
             time.sleep(self.INTERVAL)

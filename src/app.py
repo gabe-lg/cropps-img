@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import threading
 import time
 import tkinter as tk
@@ -28,6 +27,7 @@ configure_path(str(DLL_PATH))
 from src.analysis.image_analysis import start_analysis, stop_analysis
 from src.tools.cutter_control import cutter_app
 from src.tools.loggernet import Loggernet
+from src.tools.loggernet_live import LoggernetLive
 from src.tools.sms_sender import SmsSender
 from src.tools.trigger import Trigger
 from src.ui.camera import Camera
@@ -184,7 +184,7 @@ class CameraApp(tk.Tk):
 
     def open_pattern_app(self):
         try:
-            os.chdir(ROOT_PATH)
+            os.chdir(ROOT_PATH.parent)
             subprocess.Popen(['python', 'cropps-pattern/main.py'])
             print("[INFO] Pattern app started")
         except Exception as e:
@@ -259,6 +259,13 @@ class CameraApp(tk.Tk):
         #                                    text="Save graph",
         #                                    command=self.save_graph)
         # self.save_graph_button.pack(side="left", padx=10)
+
+        self.loggernet_live_button = tk.Button(
+            self.button_frame,
+            text="Open live Loggernet graph",
+            command=lambda: LoggernetLive(str(ROOT_PATH / "saves" / "data.csv"), interval=0.01).run(),
+            font=("Arial", 16))
+        self.loggernet_live_button.pack(side="left", padx=10)
 
         self.pattern_button = tk.Button(
             self.button_frame,
