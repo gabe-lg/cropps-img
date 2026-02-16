@@ -5,6 +5,7 @@ Credits: Addapted from `Windows SDK and Doc. for Scientific Cameras by ThorLab
 
 import queue
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -25,7 +26,7 @@ class ImageAcquisitionThread(threading.Thread):
     time for the thread to stop.
     """
 
-    def __init__(self, camera, save_freq=3):
+    def __init__(self, camera, save_freq=1):
         super(ImageAcquisitionThread, self).__init__()
         self._camera = camera
         self._previous_timestamp = 0
@@ -103,7 +104,7 @@ class ImageAcquisitionThread(threading.Thread):
                     img = q.get().convert("I;16")
 
                     if self._image_count % self.save_freq == 0:
-                        img.save(f"{dir}\\{self._image_count}.tiff")
+                        img.save(f"{dir}\\{self._image_count}-{time.strftime("%Y%m%d_%H%M%S")}.tiff")
 
                     self._image_count += 1
                 print(

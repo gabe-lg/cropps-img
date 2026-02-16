@@ -102,13 +102,14 @@ class CameraApp(tk.Tk):
         self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
         # Update histogram if frame exists
-        if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
-        self.loggernet_canvas.draw_idle()
+        if hasattr(self, "loggernet"):
+            if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
+            self.loggernet_canvas.draw_idle()
 
         # === GRAPHS ===
-        if self.show_graph:
-            self.histogram.update(pil_image)
-            self.histogram_canvas.draw_idle()
+        # if self.show_graph:
+        #     self.histogram.update(pil_image)
+        #     self.histogram_canvas.draw_idle()
 
         # === OpenCV webcam feed (self.cap) ===
         if hasattr(self, "cap") and self.cap.isOpened():
@@ -140,7 +141,9 @@ class CameraApp(tk.Tk):
     ## main functions for buttons ##
     def start_stop_recording(self):
         """Start recording video."""
-        return self.camera.start_stop_recording(self.start_record_button)
+        path = self.camera.start_stop_recording(self.start_record_button)
+        if hasattr(self, "loggernet"): self.loggernet.path = path / "data.csv" if path else None
+        return path
 
     def start_analysis(self):
         assert not self.camera.recording
@@ -433,11 +436,11 @@ class CameraApp(tk.Tk):
                                     pady=(5, 10))
 
         if self.show_graph:
-            hist_frame = tk.Frame(right_frame)
-            hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
-            self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
-                                                      master=hist_frame)
-            self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
+            # hist_frame = tk.Frame(right_frame)
+            # hist_frame.pack(side="bottom", fill="x", pady=(0, 10))
+            # self.histogram_canvas = FigureCanvasTkAgg(self.histogram.fig,
+            #                                           master=hist_frame)
+            # self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
 
             # --- Bottom: Histogram ---
             self.loggernet_frame = tk.Frame(right_frame)

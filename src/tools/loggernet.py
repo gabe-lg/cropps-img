@@ -17,6 +17,7 @@ class Loggernet:
         self.TITLE = "Title"
         self.X_LABEL = "Time"
         self.Y_LABEL = "Value"
+        self.path = None
 
         # Authentication credentials
         self.USERNAME = "your_username"
@@ -46,15 +47,16 @@ class Loggernet:
         self.ax.grid(True)
 
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
-        self.fig.canvas.mpl_connect('key_press_event', self.on_click)
+        # self.fig.canvas.mpl_connect('key_press_event', self.on_click)
         self.fig.canvas.mpl_connect('close_event', self.on_close)
 
         threading.Thread(target=self.fetch_latest, daemon=True).start()
 
     def fetch_latest(self):
-        with open('./assets/data.csv', 'w', newline='') as file:
-            csv.writer(file).writerows(
-                [[self.X_LABEL] + self.labels + ["Plant wounded"]])
+        if self.path:
+            with open(self.path, 'w', newline='') as file:
+                csv.writer(file).writerows(
+                    [[self.X_LABEL] + self.labels + ["Plant wounded"]])
 
         while not self.stop_event.is_set():
             url = 'http://192.168.66.1/cr6'
@@ -72,7 +74,8 @@ class Loggernet:
                 if "data" not in data:
                     break
                 record = data["data"][0]
-                time_str = record["time"]
+                # time_str = record["time"]
+                time_str = time.strftime("%m/%d/%Y %H:%M:%S")
                 vals = record["vals"]
                 (t, d) = time_str, vals
             except Exception as e:
@@ -92,9 +95,10 @@ class Loggernet:
                     range(len(self.data_list) - 1, -1, -1))
                 self.lines[:] = [i + 1 for i in self.lines]
 
-            with open(str(ROOT_PATH / "saves" / "data.csv"), 'a', newline='') as file:
-                csv.writer(file).writerows([[t] + d[:3] + [
-                    1 if self.lines and self.lines[-1] == 1 else 0]])
+            if self.path:
+                with open(self.path, 'a', newline='') as file:
+                    csv.writer(file).writerows([[t] + d[:3] + [
+                        1 if self.lines and self.lines[-1] == 1 else 0]])
             time.sleep(self.INTERVAL)
         print("Data fetching stopped.")
         self.stop_event.set()
