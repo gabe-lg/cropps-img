@@ -141,7 +141,7 @@ def image_analysis(screenshot_directory):
     if not all_files:
         return "No images found"
 
-    all_files.sort(key=lambda x: int(x.split('.')[0]))
+    all_files.sort(key=lambda x: int(x.split('-')[0]))
 
     if len(all_files) < 2:
         return "Insufficient images"

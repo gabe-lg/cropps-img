@@ -301,7 +301,7 @@ class CameraApp(tk.Tk):
         print("Message received:", new_msg)
 
         # Magic number here: analysis timeout
-        analysis_timeout = 20
+        analysis_timeout = 0 if self.show_buttons or self.show_graph else 20
 
         try:
             self.sms_sender.send_msg_after_message(new_msg, self)

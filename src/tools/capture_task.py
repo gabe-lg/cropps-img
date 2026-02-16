@@ -86,6 +86,8 @@ class CaptureTask(StoppableThread):
 
     def start_timer(self, dur, f):
         """ Sleeps for `dur` seconds then calls `f` """
+        if not dur: return
+        
         print(f"[DRIVER] timer spawned")
         for t in range(dur):
             time.sleep(1)
