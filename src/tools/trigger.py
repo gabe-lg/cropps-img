@@ -44,7 +44,7 @@ class Trigger:
                       winfo_height):
         def apply_trigger():
             for name, entry in all_entries:
-                name = name.replace(' ', '_').replace(':', '').lower()
+                name = name.split("(")[0].strip().replace(' ', '_').replace(':', '').lower()
                 value = entry.get().strip()
                 if value:
                     setattr(self, name, value)
