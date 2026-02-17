@@ -12,31 +12,34 @@ class Trigger:
         self.pre_trigger_func = pre_trigger_func
         self.analysis_duration = 120  # seconds
         self._timer = None
+        
+        # Default values, change if needed (or change manually in the app)
+        self.current_injection_port_com = 3
+        self.burn_port_com = 4
 
     def pre_trigger(self):
         try:
             self.pre_trigger_func()
-        except:
-            print("[ERROR] Pre-trigger failed")
+        except Exception as e:
+            tk.messagebox.showerror("Error", e)
 
     def execute_trigger(self, new_msg):
         match new_msg:
             case "current injection" | '1':
-                if not hasattr(self, "injection_duration") or not hasattr(self,
-                                                                          "injection_amplitude"):
-                    raise ValueError("Parameters not set")
-                    # TODO: or possibly set default values here
+                if not hasattr(self, "injection_duration"):
+                    self.injection_duration = 6
+                if not hasattr(self, "injection_amplitude"):
+                    self.injection_amplitude = 40
 
-                self.injection("COM" + self.current_injection_port_com,
+                self.injection("COM" + str(self.current_injection_port_com),
                                float(self.injection_duration),
                                float(self.injection_amplitude) / 1e6)
 
             case "burn" | '2':
                 if not hasattr(self, "burn_duration"):
-                    raise ValueError("Burn duration not set")
-                    # TODO: or possibly set a default value here
+                    self.burn_duration = 2
 
-                self.burn("COM" + self.burn_port_com,
+                self.burn("COM" + str(self.burn_port_com),
                           float(self.burn_duration))
             # TODO: more cases here
 

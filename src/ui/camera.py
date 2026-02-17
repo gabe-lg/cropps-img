@@ -164,7 +164,7 @@ class Camera:
     def start_stop_recording(self, button):
         """Start or stop recording video."""
         if self.recording:
-            button.config(text="Start recording")
+            if button: button.config(text="Start recording")
             self.image_acquisition_thread.start_stop_recording(False)
             self.recording = False
 
@@ -175,7 +175,7 @@ class Camera:
         folder_path = ROOT_PATH / "saves" / f"recordings_{timestamp}"
         folder_path.mkdir(parents=True)
 
-        button.config(text="Stop recording")
+        if button: button.config(text="Stop recording")
         self.image_acquisition_thread.image_dir = folder_path
         self.image_acquisition_thread.start_stop_recording(True)
         self.recording = True

@@ -2,6 +2,7 @@
 
 cls
 echo Plant Programming and Communication Project v3.0.0-beta
+echo Opening demo version...
 
 IF NOT EXIST ".setup_ok" (
     IF EXIST ".\setup.cmd" (
@@ -11,12 +12,6 @@ IF NOT EXIST ".setup_ok" (
 
 IF EXIST ".\venv\Scripts\activate" (
     call .\venv\Scripts\activate
-)
-
-if "%*"=="" (
-    set /p user_input=enter arguments:
-) else (
-    set "user_input=%*"
 )
 
 IF EXIST "cropps-img" (

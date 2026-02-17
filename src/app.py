@@ -141,13 +141,18 @@ class CameraApp(tk.Tk):
     ## main functions for buttons ##
     def start_stop_recording(self):
         """Start recording video."""
-        path = self.camera.start_stop_recording(self.start_record_button)
-        if hasattr(self, "loggernet"): self.loggernet.path = path / "data.csv" if path else None
+        path = self.camera.start_stop_recording(
+            self.start_record_button 
+            if hasattr(self, "start_record_button") else None)
+        if hasattr(self, "loggernet"):
+            self.loggernet.path = path / "data.csv" if path else None
         return path
 
     def start_analysis(self):
-        assert not self.camera.recording
         self.screenshot_directory = self.start_stop_recording()
+
+        if not self.screenshot_directory:  # Stopped recording
+            self.screenshot_directory = self.start_stop_recording()
 
         self.capture_task = start_analysis(
             self.camera, self.screenshot_directory, self.start_analysis_button
@@ -317,7 +322,7 @@ class CameraApp(tk.Tk):
                 case "cutter":
                     threading.Thread(target=cutter_app).start()
                 case "quit" | 'q':
-                    self.send_msg(self.template["received"]["quit"])
+                    time.sleep(1)
                     self.quit()
         except Exception as e:
             tkinter.messagebox.showerror("Error", f"An error occurred while "
@@ -353,12 +358,18 @@ class CameraApp(tk.Tk):
         height = self.winfo_screenheight() // 2
 
         # Keyboard bindings
+        self.bind('i', lambda _: [self.show_settings_dialog(), self._show_trigger_settings()])
+        
         def stop(_):
             if self.capture_task: self.stop_analysis()
 
         self.bind('s', stop)
 
-        self.bind('q', lambda _: self.quit())
+        def confirm_quit(_):
+            if (tkinter.messagebox.askyesno("Quit", "Do you want to exit the app?")):
+                self.quit()
+
+        self.bind('q', confirm_quit)
 
         def display_all(_):
             self.truncate_msgs = not self.truncate_msgs
@@ -532,10 +543,6 @@ class CameraApp(tk.Tk):
         self.analyzing = False
         self.capture_task = None
         self.imgtk = None
-        self.current_injection_port_com = 3
-        self.burn_port_com = 4
-        self.current_injection_port_com = 3
-        self.burn_port_com = 4
 
         self.histogram = Histogram()
         self.sms_sender = SmsSender()

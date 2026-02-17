@@ -164,36 +164,14 @@ class SmsSender:
         print("Message received:", new_msg)
 
         try:
-            # I just found out python has pattern matching!!!!!
             match new_msg:
                 case "current injection" | '1':
                     self.send_msg(self.template["received"]["trigger"])
 
-                    if not hasattr(self, "injection_duration") or not hasattr(
-                            self, "injection_amplitude"):
-                        raise ValueError("Parameters not set")
-                        # TODO: or possibly set default values here
-
-                    self.trigger.injection(self.current_injection_port_com,
-                                           self.injection_duration,
-                                           self.injection_amplitude)
-                    start_timer()
-
                 case "burn" | '2':
                     self.send_msg(self.template["received"]["burn"])
 
-                    if not hasattr(self, "burn_duration"):
-                        raise ValueError("Burn duration not set")
-                        # TODO: or possibly set a default value here
-
-                    self.trigger.burn("COM" + str(self.burn_port_com),
-                                      self.burn_duration)
-                    start_timer()
                 # TODO: more cases here
-
-                case "cutter":
-                    threading.Thread(
-                        target=src.cutter_control.cutter_app).start()
 
                 case "sms":
                     self.show_dialog()
@@ -210,7 +188,6 @@ class SmsSender:
                 case "quit" | 'q':
                     self.send_msg(
                         self.template["received"]["quit"])
-                    self.quit()
 
                 case _:
                     self.send_msg(
