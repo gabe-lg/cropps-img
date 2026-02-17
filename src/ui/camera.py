@@ -60,9 +60,9 @@ class Camera:
 
         return self.pil_image.copy().convert("L")
 
-    def show_exposure_dialog(self, dialog, winfo_x, winfo_y, winfo_width,
+    def show_settings_dialog(self, dialog, winfo_x, winfo_y, winfo_width,
                              winfo_height):
-        def apply():
+        def apply_exposure():
             try:
                 exposure_value = int(exposure_entry.get()) * 1000
                 self.camera.exposure_time_us = exposure_value
@@ -79,8 +79,24 @@ class Camera:
             finally:
                 dialog.destroy()
 
+        def apply_gain():
+            try:
+                self.camera.gain = int(gain_entry.get())
+
+                (
+                    tkinter.messagebox.showinfo(
+                        "Gain",
+                        "Gain set to "
+                        f"{round(self.camera.gain)}"
+                    )
+                )
+            except Exception as e:
+                tkinter.messagebox.showerror("Gain", e)
+            finally:
+                dialog.destroy()
+
         dialog.title("Exposure Settings")
-        dialog.geometry("400x150")
+        dialog.geometry("400x300")
         dialog.resizable(False, False)
 
         content_frame = tk.Frame(dialog)
@@ -88,7 +104,7 @@ class Camera:
 
         current_label = tk.Label(
             content_frame,
-            text=f"Current Exposure: {self.camera.exposure_time_us / 1000}ms"
+            text=f"Current exposure: {self.camera.exposure_time_us / 1000}ms"
         )
         current_label.pack(pady=(0, 10))
 
@@ -101,9 +117,9 @@ class Camera:
         tk.Label(input_frame, text="milliseconds").pack(side="left", padx=2)
 
         button_frame = tk.Frame(content_frame)
-        button_frame.pack()
+        button_frame.pack(pady=10)
 
-        tk.Button(button_frame, text="Apply", command=apply, width=10).pack(
+        tk.Button(button_frame, text="Apply", command=apply_exposure, width=10).pack(
             side="left", padx=5
         )
         tk.Button(button_frame, text="Cancel", command=dialog.destroy,
@@ -111,7 +127,33 @@ class Camera:
             side="left", padx=5
         )
 
-        exposure_entry.bind("<Return>", lambda e: apply())
+        #-----------------------
+
+        current_label = tk.Label(
+            content_frame,
+            text=f"Current gain: {self.camera.gain}"
+        )
+        current_label.pack(pady=(0, 10))
+
+        input_frame = tk.Frame(content_frame)
+        input_frame.pack(fill="x", pady=5)
+
+        tk.Label(input_frame, text="New gain:").pack(side="left")
+        gain_entry = tk.Entry(input_frame, width=45)
+        gain_entry.pack(side="left", padx=10)
+
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack()
+
+        tk.Button(button_frame, text="Apply", command=apply_gain, width=10).pack(
+            side="left", padx=5
+        )
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                  width=10).pack(
+            side="left", padx=5
+        )
+
+        gain_entry.bind("<Return>", lambda e: apply_gain())
 
         # Center the dialog on the main window
         dialog.update_idletasks()

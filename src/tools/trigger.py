@@ -1,9 +1,9 @@
 import json
-import os
 import threading
 import tkinter as tk
 
 from src.app import DATA_PATH
+from src.tools.sms_sender import fix_encoding
 from src.tools.triggers import *
 
 
@@ -27,17 +27,17 @@ class Trigger:
                     raise ValueError("Parameters not set")
                     # TODO: or possibly set default values here
 
-                self.injection(self.current_injection_port_com,
-                               self.injection_duration,
-                               self.injection_amplitude)
+                self.injection("COM" + self.current_injection_port_com,
+                               float(self.injection_duration),
+                               float(self.injection_amplitude) / 1e6)
 
             case "burn" | '2':
                 if not hasattr(self, "burn_duration"):
                     raise ValueError("Burn duration not set")
                     # TODO: or possibly set a default value here
 
-                self.burn("COM" + str(self.burn_port_com),
-                          self.burn_duration)
+                self.burn("COM" + self.burn_port_com,
+                          float(self.burn_duration))
             # TODO: more cases here
 
     def show_settings(self, dialog, exec_func, winfo_x, winfo_y, winfo_width,
@@ -80,7 +80,7 @@ class Trigger:
                 entry.pack(side="right", padx=2)
                 entry.bind("<Return>", lambda _: apply_trigger())
                 frame.pack(fill="x", pady=5)
-                tk.Label(frame, text=i).pack(side="right")
+                tk.Label(frame, text=fix_encoding(i)).pack(side="right")
                 all_entries.append((i, entry))
 
             for name, msg in setting["buttons"].items():
@@ -132,7 +132,7 @@ class Trigger:
     def burn(self, port, *args):
         self.pre_trigger()
         # Run burn in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=burn.main, args=(port, *args),
+        threading.Thread(target=burn.main, args=("COM" + port, *args),
                          daemon=True).start()
 
     # TODO: add more

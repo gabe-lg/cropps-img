@@ -173,8 +173,8 @@ class CameraApp(tk.Tk):
     def sms_info(self):
         self.sms_sender.show_dialog(tk.Toplevel(self))
 
-    def show_exposure_dialog(self):
-        self.camera.show_exposure_dialog(
+    def show_settings_dialog(self):
+        self.camera.show_settings_dialog(
             tk.Toplevel(self),
             self.winfo_x(), self.winfo_y(),
             self.winfo_width(), self.winfo_height())
@@ -225,34 +225,34 @@ class CameraApp(tk.Tk):
         self.start_record_button.pack(side="left", padx=20)
 
         # Analysis buttons
-        self.start_analysis_button = tk.Button(
-            self.button_frame,
-            text="Start Analysis",
-            fg="darkgreen",
-            command=self.start_analysis,
-            font=("Arial", 16),
-        )
-        self.start_analysis_button.pack(side="left", padx=20)
+        # self.start_analysis_button = tk.Button(
+        #     self.button_frame,
+        #     text="Start Analysis",
+        #     fg="darkgreen",
+        #     command=self.start_analysis,
+        #     font=("Arial", 16),
+        # )
+        # self.start_analysis_button.pack(side="left", padx=20)
 
         # Set SMS information Button
-        self.set_sms_button = tk.Button(
-            self.button_frame,
-            text="SMS Info",
-            command=self.sms_info,
-            font=("Arial", 16),
-        )
-        self.set_sms_button.pack(side="left", padx=20)
+        # self.set_sms_button = tk.Button(
+        #     self.button_frame,
+        #     text="SMS Info",
+        #     command=self.sms_info,
+        #     font=("Arial", 16),
+        # )
+        # self.set_sms_button.pack(side="left", padx=20)
 
         # Set exposure button
-        self.exposure_button = tk.Button(self.button_frame,
-                                         text="Exposure Settings",
-                                         command=self.show_exposure_dialog,
+        self.settings_button = tk.Button(self.button_frame,
+                                         text="Camera Settings",
+                                         command=self.show_settings_dialog,
                                          font=("Arial", 16))
-        self.exposure_button.pack(side="left", padx=10)
+        self.settings_button.pack(side="left", padx=10)
 
         # Triggers
         self.triggers_button = tk.Button(self.button_frame,
-                                         text="Settings...",
+                                         text="Triggers...",
                                          command=self._show_trigger_settings,
                                          font=("Arial", 16))
         self.triggers_button.pack(side="left", padx=5)
