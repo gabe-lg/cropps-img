@@ -7,7 +7,7 @@ from dlls.thorlabs_tsi_sdk.tl_camera import TLCameraSDK
 from src.app import ROOT_PATH
 from src.tools.image_queue import ImageAcquisitionThread
 
-SAVE_FREQ = 3
+SAVE_FREQ = 1
 
 
 class Camera:

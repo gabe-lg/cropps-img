@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 import tkinter as tk
 import tkinter.messagebox
 
@@ -135,6 +136,8 @@ def image_analysis(screenshot_directory):
     - Generate separate plots for both.
     - Return detection result based on frame vs. previous differences.
     """
+    time.sleep(1)
+
     all_files = [f for f in os.listdir(screenshot_directory) if
                  f.endswith('.tiff')]
 

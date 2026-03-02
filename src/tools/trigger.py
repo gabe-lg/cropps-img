@@ -14,8 +14,8 @@ class Trigger:
         self._timer = None
         
         # Default values, change if needed (or change manually in the app)
-        self.current_injection_port_com = 3
-        self.burn_port_com = 4
+        self.current_injection_port_com = 4
+        self.burn_port_com = 6
 
     def pre_trigger(self):
         try:
@@ -27,7 +27,7 @@ class Trigger:
         match new_msg:
             case "current injection" | '1':
                 if not hasattr(self, "injection_duration"):
-                    self.injection_duration = 6
+                    self.injection_duration = 30
                 if not hasattr(self, "injection_amplitude"):
                     self.injection_amplitude = 40
 
@@ -37,7 +37,7 @@ class Trigger:
 
             case "burn" | '2':
                 if not hasattr(self, "burn_duration"):
-                    self.burn_duration = 2
+                    self.burn_duration = 2.5
 
                 self.burn("COM" + str(self.burn_port_com),
                           float(self.burn_duration))
@@ -135,7 +135,7 @@ class Trigger:
     def burn(self, port, *args):
         self.pre_trigger()
         # Run burn in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=burn.main, args=("COM" + port, *args),
+        threading.Thread(target=burn.main, args=(port, *args),
                          daemon=True).start()
 
     # TODO: add more

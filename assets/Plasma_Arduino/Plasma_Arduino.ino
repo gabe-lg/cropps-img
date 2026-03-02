@@ -50,7 +50,7 @@ void loop() {
   Serial.println(lighterStartTime);
   Serial.println(duration);
   Serial.println((currentTime - lighterStartTime >= duration));
-  if (lighterActive && (currentTime - lighterStartTime >= duration)) {
+  if (lighterActive && (currentTime - lighterStartTime >= duration * 1000)) {
     digitalWrite(LIGHTER_PIN, HIGH);  // Deactivate lighter
     lighterActive = false;
     Serial.println("Lighter OFF");

@@ -26,7 +26,7 @@ class ImageAcquisitionThread(threading.Thread):
     time for the thread to stop.
     """
 
-    def __init__(self, camera, save_freq=1):
+    def __init__(self, camera, save_freq):
         super(ImageAcquisitionThread, self).__init__()
         self._camera = camera
         self._previous_timestamp = 0

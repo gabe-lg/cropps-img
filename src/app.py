@@ -37,7 +37,6 @@ from src.ui.loading_screen import LoadingScreen
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
-SAVE_FREQ = 3
 
 
 def threaded(target):
@@ -160,6 +159,8 @@ class CameraApp(tk.Tk):
             self.stop_analysis)
 
     def stop_analysis(self):
+        time.sleep(1)
+        
         if not (self.camera.recording and self.capture_task): return
 
         if self.capture_task.is_alive():
@@ -382,7 +383,7 @@ class CameraApp(tk.Tk):
 
         # --- Left side: Camera feed ---
         camera_frame = tk.Frame(main_frame, width=width, height=height)
-        camera_frame.pack(side="left", fill="both", expand=True)
+        camera_frame.pack(side="left", fill="both", expand=True, padx=100, pady=120)
         camera_frame.pack_propagate(False)
 
         header_frame = tk.Frame(camera_frame)
