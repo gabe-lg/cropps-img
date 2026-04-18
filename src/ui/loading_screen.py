@@ -2,7 +2,9 @@ import tkinter as tk
 
 from PIL import Image, ImageTk
 
-from src.app import BG_PATH
+from pathlib import Path
+
+_BG_PATH = Path(__file__).resolve().parents[2] / "assets" / "cropps_background.png"
 
 
 class LoadingScreen:
@@ -20,7 +22,7 @@ class LoadingScreen:
 
         # Load and display background
         try:
-            bg_image = Image.open(BG_PATH).resize((400, 300))
+            bg_image = Image.open(_BG_PATH).resize((400, 300))
             self.bg_photo = ImageTk.PhotoImage(bg_image)
             tk.Label(self.loading_frame, image=self.bg_photo).pack()
         except Exception as e:
@@ -41,12 +43,14 @@ class LoadingScreen:
 
         self._animate_loading()
 
-    def __del__(self):
+    def destroy(self):
         self._running = False
         self.loading_frame.destroy()
 
     def _animate_loading(self):
         """Animate the loading circle"""
+        if not self._running:
+            return
         self.loading_canvas.delete("all")
 
         # Draw rotating arc

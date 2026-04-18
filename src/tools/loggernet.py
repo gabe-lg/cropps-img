@@ -1,4 +1,5 @@
 import csv
+import os
 import threading
 import time
 
@@ -7,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import requests
 from requests.auth import HTTPBasicAuth
-from src.app import ROOT_PATH
 
 
 class Loggernet:
@@ -19,9 +19,9 @@ class Loggernet:
         self.Y_LABEL = "Value"
         self.path = None
 
-        # Authentication credentials
-        self.USERNAME = "your_username"
-        self.PASSWORD = "your_password"
+        # Authentication credentials (set via LOGGERNET_USER / LOGGERNET_PASS env vars)
+        self.USERNAME = os.environ.get("LOGGERNET_USER", "your_username")
+        self.PASSWORD = os.environ.get("LOGGERNET_PASS", "your_password")
 
         # Data storage
         self.timestamps = []  # x axis

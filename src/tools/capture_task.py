@@ -1,19 +1,10 @@
 import os
-import shutil
 import threading
 import time
 
 import cv2
 
-# from driver_dnx64 import DNX64  # SDK wrapper from same folder
-
 # Constants
-DLL_PATH = r"C:\Users\17177\Desktop\research\cropps-img-headless\dino-lite-sdk\DNX64.dll"
-DEVICE_INDEX = 0
-EXPOSURE_VALUE = 3000  # Feel free to tweak this (range: 100–60000)
-
-# the pictures from microscope are now saved in shared folder
-# capture with the same frame rate of the camera
 CAPTURE_INTERVAL = 0.5
 # CAPTURE_INTERVAL = 2
 FILE_LIMIT = 100000
@@ -53,18 +44,17 @@ class CaptureTask(StoppableThread):
         print("[DRIVER] Capture thread exiting...")
 
     def _delete_file(self):
-        """Deletes all files in `SCREENSHOT_DIRECTORY` if file count is greater than FILE_LIMIT"""
+        """Deletes oldest files in screenshot directory when count exceeds FILE_LIMIT."""
         if os.path.exists(self.screenshot_directory):
-            items = os.listdir(self.screenshot_directory)
-            file_count = sum(1 for item in items if os.path.isfile(
-                os.path.join(self.screenshot_directory, item)))
-            if file_count >= FILE_LIMIT:
-                for item in items:
-                    item_path = os.path.join(self.screenshot_directory, item)
-                    if os.path.isfile(item_path):
-                        os.remove(item_path)
-                    elif os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
+            files = [
+                os.path.join(self.screenshot_directory, f)
+                for f in os.listdir(self.screenshot_directory)
+                if os.path.isfile(os.path.join(self.screenshot_directory, f))
+            ]
+            if len(files) >= FILE_LIMIT:
+                files.sort(key=os.path.getctime)
+                for f in files[:len(files) - FILE_LIMIT + 1]:
+                    os.remove(f)
 
     def capture_image(self, frame):
         if not os.path.exists(self.screenshot_directory):
@@ -98,15 +88,3 @@ class CaptureTask(StoppableThread):
         print(f"[DRIVER] timer stopped")
         f()
 
-
-# run the code only if this script is executed directly
-if __name__ == "__main__":
-    task = CaptureTask()
-    task.start()
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Stopping capture...")
-        task.stop()
-        task.join()

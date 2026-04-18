@@ -15,14 +15,16 @@ from src.tools.capture_task import CaptureTask
 IMAGE_WIDTH = 1440
 IMAGE_HEIGHT = 1080
 
-# Pixel intensity range to track
+# Pixel intensity range to track (on the frame-to-frame diff image)
+# Keep the original calibration from 8-bit tests; revisit once re-calibrated
+# against real experiments on the 10-bit camera.
 MIN_INTENSITY = 20
 MAX_INTENSITY = 170
 
 # Analysis parameters
 MAX_FRAMES = 101  # Check first 100 frames for detection
-THRESHOLD_NOTHING = 35  # Pixels <50: Nothing happened
-THRESHOLD_INJECTION = 10000  # Pixels 50-10000: Current injection
+THRESHOLD_NOTHING = 35       # pixel-count threshold (bit-depth independent)
+THRESHOLD_INJECTION = 10000  # pixel-count threshold (bit-depth independent)
 
 # Flag to enable/disable figure creation
 CREATE_FIGURE = True
@@ -80,34 +82,36 @@ def stop_analysis(sms_sender, directory, button, command):
 
 
 def plot_pixel_counts_vs_prev(pixel_counts_prev, screenshot_directory):
-    """Plot pixel counts (intensity 40-170 after previous frame subtraction) vs. frame number and save."""
+    """Plot pixel counts within [MIN_INTENSITY, MAX_INTENSITY] after previous frame subtraction."""
     frame_numbers = [i for i in range(2, len(pixel_counts_prev) + 2)]
+    label = f"Intensity {MIN_INTENSITY}-{MAX_INTENSITY}"
 
-    plt.figure(figsize=(10, 6))  # TODO: cannot be called in another thread
+    plt.figure(figsize=(10, 6))
     plt.plot(frame_numbers, pixel_counts_prev, marker='o', linestyle='-',
              color='b')
     plt.xlabel('Frame Number')
-    plt.ylabel('Pixel Count (Intensity 40-170)')
-    plt.title('Pixel Count (40-170) vs. Frame Number - Previous Frame')
+    plt.ylabel(f'Pixel Count ({label})')
+    plt.title(f'Pixel Count ({label}) vs. Frame Number - Previous Frame')
     plt.grid(True)
     plt.savefig(os.path.join(screenshot_directory,
-                             'pixel_count_40_170_vs_prev_plot.png'))
+                             'pixel_count_vs_prev_plot.png'))
     plt.close()
 
 
 def plot_pixel_counts_vs_background(pixel_counts_bg, screenshot_directory):
-    """Plot pixel counts (intensity 40-170 after background frame subtraction) vs. frame number and save."""
+    """Plot pixel counts within [MIN_INTENSITY, MAX_INTENSITY] after background subtraction."""
     frame_numbers = [i for i in range(2, len(pixel_counts_bg) + 2)]
+    label = f"Intensity {MIN_INTENSITY}-{MAX_INTENSITY}"
 
     plt.figure(figsize=(10, 6))
     plt.plot(frame_numbers, pixel_counts_bg, marker='o', linestyle='-',
              color='r')
     plt.xlabel('Frame Number')
-    plt.ylabel('Pixel Count (Intensity 40-170)')
-    plt.title('Pixel Count (40-170) vs. Frame Number - Background Frame')
+    plt.ylabel(f'Pixel Count ({label})')
+    plt.title(f'Pixel Count ({label}) vs. Frame Number - Background Frame')
     plt.grid(True)
     plt.savefig(
-        os.path.join(screenshot_directory, 'pixel_count_40_170_vs_bg_plot.png'))
+        os.path.join(screenshot_directory, 'pixel_count_vs_bg_plot.png'))
     plt.close()
 
 
@@ -156,7 +160,9 @@ def image_analysis(screenshot_directory):
 
     for i, image_file in enumerate(all_files, start=1):
         image_path = os.path.join(screenshot_directory, image_file)
-        current_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        # IMREAD_ANYDEPTH preserves 16-bit data (carrying 10-bit sensor values 0-1023)
+        current_image = cv2.imread(
+            image_path, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_GRAYSCALE)
 
         if current_image is None or current_image.shape != (IMAGE_HEIGHT,
                                                             IMAGE_WIDTH):
@@ -185,14 +191,14 @@ def image_analysis(screenshot_directory):
     output_file_prev = os.path.join(screenshot_directory,
                                     'pixel_counts_vs_prev.txt')
     with open(output_file_prev, 'w') as f:
-        f.write("Frame Number,Pixel Count (40-170 vs Previous Frame)\n")
+        f.write(f"Frame Number,Pixel Count ({MIN_INTENSITY}-{MAX_INTENSITY} vs Previous Frame)\n")
         for i, count in enumerate(pixel_counts_vs_prev, start=2):
             f.write(f"{i},{count}\n")
 
     output_file_bg = os.path.join(screenshot_directory,
                                   'pixel_counts_vs_bg.txt')
     with open(output_file_bg, 'w') as f:
-        f.write("Frame Number,Pixel Count (40-170 vs Background)\n")
+        f.write(f"Frame Number,Pixel Count ({MIN_INTENSITY}-{MAX_INTENSITY} vs Background)\n")
         for i, count in enumerate(pixel_counts_vs_bg, start=2):
             f.write(f"{i},{count}\n")
 

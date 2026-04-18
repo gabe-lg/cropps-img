@@ -1,8 +1,11 @@
 import json
 import threading
 import tkinter as tk
+import tkinter.messagebox
 
-from src.app import DATA_PATH
+from pathlib import Path
+
+_DATA_PATH = Path(__file__).resolve().parents[2] / "src" / "data"
 from src.tools.sms_sender import fix_encoding
 from src.tools.triggers import *
 
@@ -11,8 +14,7 @@ class Trigger:
     def __init__(self, pre_trigger_func):
         self.pre_trigger_func = pre_trigger_func
         self.analysis_duration = 120  # seconds
-        self._timer = None
-        
+
         # Default values, change if needed (or change manually in the app)
         self.current_injection_port_com = 4
         self.burn_port_com = 6
@@ -21,7 +23,7 @@ class Trigger:
         try:
             self.pre_trigger_func()
         except Exception as e:
-            tk.messagebox.showerror("Error", e)
+            tkinter.messagebox.showerror("Error", str(e))
 
     def execute_trigger(self, new_msg):
         match new_msg:
@@ -70,7 +72,7 @@ class Trigger:
         canvas.create_window((10, 10), window=content_frame, anchor="nw")
 
         # ---- Create entries ----
-        with open(str(DATA_PATH / "trigger_func.json")) as f:
+        with open(str(_DATA_PATH / "trigger_func.json")) as f:
             s = json.load(f)
 
         all_entries = []
@@ -128,14 +130,10 @@ class Trigger:
 
     def injection(self, port, *args):
         self.pre_trigger()
-        # Run injection in a separate thread to avoid blocking CaptureTask
         threading.Thread(target=injection.main, args=(port, *args),
                          daemon=True).start()
 
     def burn(self, port, *args):
         self.pre_trigger()
-        # Run burn in a separate thread to avoid blocking CaptureTask
         threading.Thread(target=burn.main, args=(port, *args),
                          daemon=True).start()
-
-    # TODO: add more

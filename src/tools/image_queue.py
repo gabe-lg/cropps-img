@@ -9,7 +9,22 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 from PIL import Image
+
+
+def _make_preview(img: Image.Image) -> Image.Image:
+    """Return an 8-bit auto-contrasted PNG-ready copy of a 16-bit PIL Image.
+
+    Uses 1st/99th percentile stretch so dim images become visible without
+    clipping outliers. Fast (~30ms for 1440x1080) and runs in the save thread,
+    off the camera acquisition path.
+    """
+    arr = np.asarray(img, dtype=np.uint16)
+    p1, p99 = np.percentile(arr, (1, 99))
+    span = max(1.0, p99 - p1)
+    scaled = np.clip((arr.astype(np.float32) - p1) * 255.0 / span, 0, 255)
+    return Image.fromarray(scaled.astype(np.uint8))
 
 from dlls.thorlabs_tsi_sdk.tl_camera import Frame
 from dlls.thorlabs_tsi_sdk.tl_camera_enums import SENSOR_TYPE
@@ -99,12 +114,21 @@ class ImageAcquisitionThread(threading.Thread):
         with self._queue_lock:
             if self._image_dir or force_save:
                 dir = self._image_dir
+                preview_dir = Path(dir) / "preview"
+                preview_dir.mkdir(exist_ok=True)
 
                 while not q.empty():
-                    img = q.get().convert("I;16")
+                    img = q.get()  # already 16-bit PIL Image carrying raw camera data
 
                     if self._image_count % self.save_freq == 0:
-                        img.save(f"{dir}\\{self._image_count}-{time.strftime("%Y%m%d_%H%M%S")}.tiff")
+                        stamp = time.strftime("%Y%m%d_%H%M%S")
+                        name = f"{self._image_count}-{stamp}"
+                        img.save(f"{dir}\\{name}.tiff")
+                        # Auto-contrasted preview (8-bit PNG) for quick inspection
+                        try:
+                            _make_preview(img).save(str(preview_dir / f"{name}.png"))
+                        except Exception as e:
+                            print(f"[preview] failed for {name}: {e}")
 
                     self._image_count += 1
                 print(
@@ -134,14 +158,17 @@ class ImageAcquisitionThread(threading.Thread):
             self._image_height)
         color_image_data = color_image_data.reshape(self._image_height,
                                                     self._image_width, 3)
-        # return PIL Image object
-        return Image.fromarray(color_image_data, mode='RGB')
+        # copy() — defensive: avoid sharing buffer with SDK internals
+        return Image.fromarray(color_image_data.copy(), mode='RGB')
 
     def _get_image(self, frame):
         # type: (Frame) -> Image
-        # no coloring, just scale down image to 8 bpp and place into PIL Image object
-        scaled_image = frame.image_buffer >> (self._bit_depth - 8)
-        return Image.fromarray(scaled_image)
+        # Preserve raw bit-depth data (e.g., 10-bit values 0-1023) in a uint16
+        # PIL Image. The saved TIFF will be 16-bit lossless; display pipeline
+        # handles its own 8-bit scaling.
+        # IMPORTANT: copy() — the SDK reuses this buffer for the next frame.
+        # Without copy, all queued frames point at the same (latest) data.
+        return Image.fromarray(frame.image_buffer.copy())
 
     def run(self):
         while not self._stop_event.is_set():

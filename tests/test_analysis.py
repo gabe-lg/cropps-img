@@ -35,7 +35,7 @@ class TestAnalysis(unittest.TestCase):
         print(f"Failed count: {base_count}")
         return [agitated_count, base_count]
 
-    def tests(self):
+    def test_analysis(self):
         self.assertTrue(np.all(np.array(
             self._failed_count(), dtype=np.float32).flatten() < self.max_value))
 

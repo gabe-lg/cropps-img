@@ -1,13 +1,9 @@
 instrumental-lib
 matplotlib
-nicelib
 numpy
-oct2py
-opencv-python-headless
 opencv-python
 pillow
 psycopg2-binary
 pyserial
 pywin32
 requests
-watchdog

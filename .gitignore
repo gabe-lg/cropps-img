@@ -34,3 +34,4 @@ release/*
 # misc
 yacctab.py
 lextab.py
+debug.log

@@ -1,4 +1,5 @@
 import os
+import queue
 import subprocess
 import threading
 import time
@@ -37,6 +38,8 @@ from src.ui.loading_screen import LoadingScreen
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
+DISPLAY_FPS = 15  # GUI camera-feed refresh rate (decoupled from capture fps)
+DISPLAY_INTERVAL_MS = max(1, int(1000 / DISPLAY_FPS))
 
 
 def threaded(target):
@@ -55,6 +58,12 @@ class CameraApp(tk.Tk):
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         self._last_msg_history = []
+        self.update_pid = None
+        self.capture_task = None
+        self.cap = None
+        self.start_record_button = None
+        self.start_analysis_button = None
+        self._shutting_down = False
         self._parse_args(argv)
 
         self._setup_ok_event = threading.Event()
@@ -65,26 +74,32 @@ class CameraApp(tk.Tk):
 
     def quit(self):
         print("Exiting...")
-        # self.stop_analysis()
+        self._shutting_down = True
         try:
-            self.after_cancel(self.update_pid)
-            self.camera.image_acquisition_thread.stop()
-            self.camera.camera.dispose()
-            self.camera.sdk.dispose()
+            if self.update_pid is not None:
+                self.after_cancel(self.update_pid)
+            if hasattr(self.camera, 'image_acquisition_thread'):
+                self.camera.image_acquisition_thread.stop()
+            if hasattr(self.camera, 'camera'):
+                self.camera.camera.dispose()
+            if hasattr(self.camera, 'sdk'):
+                self.camera.sdk.dispose()
             self.destroy()
             print("Exited successfully")
         finally:
-            os.kill(os.getpid(), 2)
+            os._exit(0)
 
     ## main update function ##
     def update_camera_feed(self):
         """Update the camera feed in the GUI window."""
+        if self._shutting_down:
+            return
         # === Main camera (self.camera) ===
         # Get latest image from camera
         try:
             pil_image = self.camera.latest_image()
         except IndexError:
-            self.after(10, self.update_camera_feed)
+            self.after(DISPLAY_INTERVAL_MS, self.update_camera_feed)
             return
         self.imgtk = ImageTk.PhotoImage(image=pil_image)
 
@@ -101,7 +116,7 @@ class CameraApp(tk.Tk):
         self.canvas.create_image(x, y, anchor=tk.NW, image=self.imgtk)
 
         # Update histogram if frame exists
-        if hasattr(self, "loggernet"):
+        if self.show_graph:
             if not self.loggernet.stop_event.is_set(): self.loggernet.update(0)
             self.loggernet_canvas.draw_idle()
 
@@ -111,7 +126,7 @@ class CameraApp(tk.Tk):
         #     self.histogram_canvas.draw_idle()
 
         # === OpenCV webcam feed (self.cap) ===
-        if hasattr(self, "cap") and self.cap.isOpened():
+        if self.cap is not None and self.cap.isOpened():
             ret, frame = self.cap.read()
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -135,15 +150,14 @@ class CameraApp(tk.Tk):
                 self.webcam_canvas.create_image(x, y, anchor=tk.NW,
                                                 image=self.imgtk_web)
 
-        self.update_pid = self.after(10, self.update_camera_feed)
+        self.update_pid = self.after(DISPLAY_INTERVAL_MS, self.update_camera_feed)
 
     ## main functions for buttons ##
+
     def start_stop_recording(self):
         """Start recording video."""
-        path = self.camera.start_stop_recording(
-            self.start_record_button 
-            if hasattr(self, "start_record_button") else None)
-        if hasattr(self, "loggernet"):
+        path = self.camera.start_stop_recording(self.start_record_button)
+        if self.show_graph:
             self.loggernet.path = path / "data.csv" if path else None
         return path
 
@@ -154,13 +168,12 @@ class CameraApp(tk.Tk):
             self.screenshot_directory = self.start_stop_recording()
 
         self.capture_task = start_analysis(
-            self.camera, self.screenshot_directory, self.start_analysis_button
-            if hasattr(self, "start_analysis_button") else None,
-            self.stop_analysis)
+            self.camera, self.screenshot_directory,
+            self.start_analysis_button, self.stop_analysis)
 
     def stop_analysis(self):
         time.sleep(1)
-        
+
         if not (self.camera.recording and self.capture_task): return
 
         if self.capture_task.is_alive():
@@ -170,9 +183,7 @@ class CameraApp(tk.Tk):
         self.start_stop_recording()
 
         stop_analysis(self.sms_sender, self.screenshot_directory,
-                      self.start_analysis_button
-                      if hasattr(self, "start_analysis_button") else None,
-                      self.start_analysis)
+                      self.start_analysis_button, self.start_analysis)
 
         self.capture_task = None
 
@@ -193,8 +204,8 @@ class CameraApp(tk.Tk):
 
     def open_pattern_app(self):
         try:
-            os.chdir(ROOT_PATH.parent)
-            subprocess.Popen(['python', 'cropps-pattern/main.py'])
+            subprocess.Popen(['python', 'cropps-pattern/main.py'],
+                             cwd=str(ROOT_PATH.parent))
             print("[INFO] Pattern app started")
         except Exception as e:
             tkinter.messagebox.showerror("Error",
@@ -301,30 +312,47 @@ class CameraApp(tk.Tk):
         corresponding function.
         """
         if not new_msg:
-            # self._show_serial_port_dialog()
-            new_msg = self.sms_sender.new_msgs.get()
+            try:
+                new_msg = self.sms_sender.new_msgs.get_nowait()
+            except queue.Empty:
+                return
 
         print("Message received:", new_msg)
 
-        # Magic number here: analysis timeout
-        analysis_timeout = 0 if self.show_buttons or self.show_graph else 20
+        analysis_timeout = 20  # seconds before auto-stop and analysis
 
         try:
-            self.sms_sender.send_msg_after_message(new_msg, self)
-            self.trigger.execute_trigger(new_msg)
-
-            # I just found out python has pattern matching!!!!!
             match new_msg:
-                case "current injection" | '1' | "burn" | '2':
-                    threading.Thread(
-                        target=self.capture_task.start_timer,
-                        args=(analysis_timeout, self.stop_analysis),
-                        daemon=True).start()
+                case "current injection" | '1':
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["trigger"])
+                    self.trigger.execute_trigger(new_msg)
+                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                case "burn" | '2':
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["burn"])
+                    self.trigger.execute_trigger(new_msg)
+                    self.after(analysis_timeout * 1000, self.stop_analysis)
+                case "stop" | 's':
+                    if self.capture_task:
+                        self.sms_sender.send_msg(
+                            self.sms_sender.template["received"]["stop"]["ok"])
+                        self.stop_analysis()
+                    else:
+                        self.sms_sender.send_msg(
+                            self.sms_sender.template["received"]["stop"]["error"])
+                case "sms":
+                    self.sms_sender.show_dialog(tk.Toplevel(self))
                 case "cutter":
                     threading.Thread(target=cutter_app).start()
                 case "quit" | 'q':
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["quit"])
                     time.sleep(1)
                     self.quit()
+                case _:
+                    self.sms_sender.send_msg(
+                        self.sms_sender.template["received"]["else"])
         except Exception as e:
             tkinter.messagebox.showerror("Error", f"An error occurred while "
                                                   f"attempting to execute trigger: {e}")
@@ -336,8 +364,30 @@ class CameraApp(tk.Tk):
         print("Message observer started")
         print("[poll_messages]: Process spawned")
         while True:
-            self.chatbox.poll_messages(self._execute_trigger,
-                                       self.truncate_msgs)
+            self._poll_messages()
+
+    def _poll_messages(self):
+        """Poll for new SMS messages (runs in worker thread)."""
+        self.sms_sender.msg_changed_event.wait()
+        self.sms_sender.msg_changed_event.clear()
+
+        try:
+            if self.sms_sender.new_msg_event.is_set():
+                self.sms_sender.new_msg_event.clear()
+                self.after(0, self._execute_trigger)
+
+            if self.sms_sender and self.sms_sender.phone:
+                msgs = self.sms_sender.get_msg_history(
+                    self.sms_sender.phone)
+
+                if msgs != self._last_msg_history:
+                    self._last_msg_history = msgs
+                    self.chatbox._last_msg_history = msgs
+                    self.after(0, self.chatbox.refresh_chatbox,
+                               self.truncate_msgs)
+
+        except Exception as e:
+            print("Error polling messages:", e)
 
     def _load_watermark(self, watermark_path):
         """Load the watermark image and resize it."""
@@ -537,7 +587,7 @@ class CameraApp(tk.Tk):
             self.after(50, self._setup_ui_after_camera)
             return
 
-        self.loading_screen.__del__()
+        self.loading_screen.destroy()
 
         # Continue with regular UI setup
         self.video_writer = None
@@ -578,16 +628,7 @@ class CameraApp(tk.Tk):
         # Toggle graphs and webcam feed
         self.show_buttons = self.show_graph = self.truncate_msgs = self.show_webcam = False
         for arg in argv[1:]:
-            if arg.startswith('-'):
-                if 'b' in arg:
-                    self.show_buttons = True
-                if 'g' in arg:
-                    self.show_graph = True
-                if 't' in arg:
-                    self.truncate_msgs = True
-                if 'w' in arg:
-                    self.show_webcam = True
-            elif arg.startswith("--"):
+            if arg.startswith("--"):
                 match arg:
                     case "--show-buttons":
                         self.show_buttons = True
@@ -600,6 +641,15 @@ class CameraApp(tk.Tk):
                     case _:
                         print("Unknown argument: ", arg)
                         os.kill(os.getpid(), 2)
+            elif arg.startswith('-'):
+                if 'b' in arg:
+                    self.show_buttons = True
+                if 'g' in arg:
+                    self.show_graph = True
+                if 't' in arg:
+                    self.truncate_msgs = True
+                if 'w' in arg:
+                    self.show_webcam = True
             else:
                 print("Unknown argument: ", arg)
                 print(f"Hint: did you mean -{arg}?")

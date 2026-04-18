@@ -8,44 +8,36 @@ except ModuleNotFoundError:
 BAUD_RATE = 9600
 
 
-def main(port: int, duration: float = 2):
+def main(port: str, duration: float = 2):
     """
-    :param port: serial port number
-    :param duration: lighter duration
+    :param port: serial port name (e.g., "COM6")
+    :param duration: lighter duration (unused by current Arduino firmware,
+                     which uses a fixed pulse width via the 'L1' command)
     """
     try:
         # Initialize serial connection
         ser = serial.Serial(port, BAUD_RATE, timeout=1)
         time.sleep(2)  # Wait for Arduino to initialize
-        print("Connected to Arduino on", port)
+        print(f"[burn] connected to Arduino on {port}")
 
         # Read initial Arduino messages
         while ser.in_waiting:
-            print(ser.readline().decode('utf-8').strip())
+            print(f"[burn] Arduino init msg: {ser.readline().decode('utf-8').strip()}")
 
-        # # Send L1 command to Arduino
-        # ser.write('L1\n'.encode('utf-8'))
-        # print("Sent L1 command")
-
-        # Instead of sending 'L1', send the lighter duration
-        # TODO: add more parameters here:
-        ser.write((str(duration) + '\n').encode('utf-8'))
-        print("Sent command:", duration)
+        # Send L1 command to fire lighter (Arduino firmware uses L1 protocol)
+        ser.write(b'L1\n')
+        print(f"[burn] sent command 'L1' (duration param {duration}s unused by current firmware)")
 
         # Read and display Arduino response
         time.sleep(0.1)  # Brief delay to allow Arduino to respond
         while ser.in_waiting:
-            print(ser.readline().decode('utf-8').strip())
+            print(f"[burn] Arduino response: {ser.readline().decode('utf-8').strip()}")
 
     except serial.SerialException as e:
-        print(f"Serial error: {e}")
+        print(f"[burn] Serial error: {e}")
     except KeyboardInterrupt:
-        print("\nProgram interrupted.")
+        print("[burn] interrupted")
     finally:
         if 'ser' in locals() and ser.is_open:
             ser.close()
-            print("Serial connection closed.")
-
-
-if __name__ == "__main__":
-    main()
+            print("[burn] serial connection closed")

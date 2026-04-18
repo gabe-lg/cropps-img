@@ -9,12 +9,17 @@ import time
 import tkinter as tk
 import tkinter.messagebox
 
-from src.app import BG_PATH, ROOT_PATH, DATA_PATH
+from pathlib import Path
+
+# Resolve paths without importing src.app (avoids circular import)
+_ROOT_PATH = Path(__file__).resolve().parents[2]
+_DATA_PATH = _ROOT_PATH / "src" / "data"
+_BG_PATH = _ROOT_PATH / "assets" / "cropps_background.png"
 
 
 def fix_encoding(data):
     """
-    Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€”' → '—', 'ðŸ”¥' → '🔥').
+    Fix mis-decoded UTF-8 text that appears as Latin-1 (e.g., 'â€"' → '—', 'ðŸ"¥' → '🔥').
     """
     return re.sub(r'\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}',
                   lambda match: bytes(match.group(0), 'utf-8')
@@ -24,7 +29,8 @@ def fix_encoding(data):
 class SmsSender:
     def __init__(self):
         # The path where adb was installed
-        self.dir = str(ROOT_PATH / "platform-tools")
+        self.dir = str(_ROOT_PATH / "platform-tools")
+        self.adb = os.path.join(self.dir, "adb")
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
@@ -36,34 +42,30 @@ class SmsSender:
         self.init_ms = int(time.time() * 1000)
 
         # messages to send
-        with open(str(DATA_PATH / "sms_template.json")) as f:
+        with open(str(_DATA_PATH / "sms_template.json")) as f:
             self.template = json.load(f)
 
-        oldpwd = os.getcwd()
-        try:
-            os.chdir(self.dir)
-        except FileNotFoundError:
-            self.dir = input("Enter the path where adb is installed: ")
-            os.chdir(self.dir)
+        if not os.path.isdir(self.dir):
+            raise FileNotFoundError(
+                f"ADB platform-tools directory not found: {self.dir}"
+            )
 
         try:
             # Increase the SMS sending limit
             subprocess.run([
-                "./adb", "shell", "settings", "put", "global",
+                self.adb, "shell", "settings", "put", "global",
                 "sms_outgoing_check_max_count", "99999"
-            ], check=True)
+            ], cwd=self.dir, check=True)
 
             # Increase the SMS sending interval window (in milliseconds)
             subprocess.run([
-                "./adb", "shell", "settings", "put", "global",
+                self.adb, "shell", "settings", "put", "global",
                 "sms_outgoing_check_interval_ms", "9000000"
-            ], check=True)
+            ], cwd=self.dir, check=True)
 
             print("SMS sending limit increased.")
         except subprocess.CalledProcessError as e:
             print(f"An error occurred: {e}")
-        finally:
-            os.chdir(oldpwd)
 
     def show_dialog(self, dialog):
         dialog.title("Enter SMS Details")
@@ -144,12 +146,12 @@ class SmsSender:
         dialog.bind("<Return>", lambda _: send_info())
         dialog.bind("<Escape>", lambda _: dialog.destroy())
 
-        image = tk.PhotoImage(file=BG_PATH)
+        image = tk.PhotoImage(file=_BG_PATH)
         image_label = tk.Label(dialog, image=image)
         image_label.grid(row=5, column=0, columnspan=2, padx=2, pady=10)
         image_label.image = image
 
-        dialog.mainloop()
+        dialog.grab_set()
 
     def set_info(self, contact_name: str, contact_phone: str):
         """
@@ -157,44 +159,6 @@ class SmsSender:
         """
         self.name = contact_name
         self.phone = contact_phone
-
-    def execute_trigger(self, new_msg=None):
-        if not new_msg:
-            new_msg = self.new_msgs.get()
-        print("Message received:", new_msg)
-
-        try:
-            match new_msg:
-                case "current injection" | '1':
-                    self.send_msg(self.template["received"]["trigger"])
-
-                case "burn" | '2':
-                    self.send_msg(self.template["received"]["burn"])
-
-                # TODO: more cases here
-
-                case "sms":
-                    self.show_dialog()
-
-                case "stop" | 's':
-                    if self.capture_task:
-                        self.send_msg(
-                            self.template["received"]["stop"]["ok"])
-                        self.stop_analysis()
-                    else:
-                        self.send_msg(self.template
-                                      ["received"]["stop"]["error"])
-
-                case "quit" | 'q':
-                    self.send_msg(
-                        self.template["received"]["quit"])
-
-                case _:
-                    self.send_msg(
-                        self.template["received"]["else"])
-        except Exception as e:
-            tkinter.messagebox.showerror("Error",
-                                         f"An error occurred while running external script: {e}")
 
     def get_msg_history(self, phone: str):
         """
@@ -207,34 +171,27 @@ class SmsSender:
         }
         """
 
-        oldpwd = os.getcwd()
-        os.chdir(self.dir)
+        # Read received (inbox) messages
+        inbox_cmd = [
+            self.adb, 'shell', 'content', 'query',
+            '--uri', 'content://sms/inbox',
+            '--projection', 'address,body,date',
+            '--where', f"date\\>={self.init_ms}"
+        ]
+        inbox_output = subprocess.run(inbox_cmd, cwd=self.dir, check=True,
+                                      capture_output=True).stdout.decode(
+            "utf-8", errors="ignore")
 
-        try:
-            # Read received (inbox) messages
-            inbox_cmd = [
-                './adb', 'shell', 'content', 'query',
-                '--uri', 'content://sms/inbox',
-                '--projection', 'address,body,date',
-                '--where', f"date\\>={self.init_ms}"
-            ]
-            inbox_output = subprocess.run(inbox_cmd, check=True,
-                                          capture_output=True).stdout.decode(
-                "utf-8", errors="ignore")
-
-            # Read sent messages
-            sent_cmd = [
-                './adb', 'shell', 'content', 'query',
-                '--uri', 'content://sms/sent',
-                '--projection', 'address,body,date',
-                '--where', f"date\\>={self.init_ms}"
-            ]
-            sent_output = subprocess.run(sent_cmd, check=True,
-                                         capture_output=True).stdout.decode(
-                "utf-8", errors="ignore")
-
-        finally:
-            os.chdir(oldpwd)
+        # Read sent messages
+        sent_cmd = [
+            self.adb, 'shell', 'content', 'query',
+            '--uri', 'content://sms/sent',
+            '--projection', 'address,body,date',
+            '--where', f"date\\>={self.init_ms}"
+        ]
+        sent_output = subprocess.run(sent_cmd, cwd=self.dir, check=True,
+                                     capture_output=True).stdout.decode(
+            "utf-8", errors="ignore")
 
         def parse_sms_output(output: str, msg_type: str, phone: str):
             msgs = []
@@ -292,16 +249,15 @@ class SmsSender:
 
         while True:
             cmd = [
-                './adb', 'shell', 'content', 'query',
+                self.adb, 'shell', 'content', 'query',
                 '--uri', 'content://sms/inbox',
                 '--where', f'date\\>={self.init_ms}',
                 '--projection', 'body'
             ]
 
             try:
-                os.chdir(self.dir)
-                output = subprocess.run(cmd, check=True, capture_output=True,
-                                        text=True).stdout
+                output = subprocess.run(cmd, cwd=self.dir, check=True,
+                                        capture_output=True, text=True).stdout
                 orig = [r.partition("body=")[2].strip() for r in
                         self.sms_msgs.splitlines() if "body=" in r]
                 new = [r.partition("body=")[2].strip() for r in
@@ -323,15 +279,6 @@ class SmsSender:
                 # 2 seconds ok?
                 time.sleep(2)
 
-    def send_sms(self) -> int:
-        """
-        Sends an sms message to `phone`.
-        Returns: 0 if successful; otherwise 1
-        """
-        if not (self.name and self.phone): return 1
-        sms_sender.send_msg(sms_sender.template["detected"][0])
-        return 0
-
     def send_debug_msg(self, message: str):
         self.send_msg(self.phone_for_debug, message)
 
@@ -342,7 +289,7 @@ class SmsSender:
         message = fix_encoding(message).replace("$NAME", self.name)
 
         command = [
-            "./adb",
+            self.adb,
             "shell",
             "am",
             "startservice",
@@ -352,19 +299,12 @@ class SmsSender:
             "-e", "msg", f"'{message}'"
         ]
 
-        # Change the current working directory to where adb works
-        oldpwd = os.getcwd()
-
-        # Execute the command
         try:
-            os.chdir(self.dir)
-            subprocess.run(command, check=True)
+            subprocess.run(command, cwd=self.dir, check=True)
             self.msg_changed_event.set()
             print("[send_msg]: A message has been sent.")
         except subprocess.CalledProcessError as e:
             raise RuntimeError(e)
-        finally:
-            os.chdir(oldpwd)
 
     def send_msg_after_analysis(self, result):
         if not self.phone:
@@ -377,28 +317,6 @@ class SmsSender:
                 self.send_msg(self.template["detected"]["burn"])
             case _:
                 self.send_msg(self.template["detected"]["else"])
-
-    def send_msg_after_message(self, new_msg, parent):
-        match new_msg:
-            case "current injection" | '1':
-                self.send_msg(self.template["received"]["trigger"])
-
-            case "burn" | '2':
-                self.send_msg(self.template["received"]["burn"])
-
-            case "sms":
-                self.show_dialog(tk.Toplevel(parent))
-
-            case "stop" | 's':
-                if self.capture_task:
-                    self.send_msg(self.template["received"]["stop"]["ok"])
-                    self.stop_analysis()
-                else:
-                    self.send_msg(self.template["received"]["stop"]["error"])
-
-            case "quit" | 'q':
-                self.send_msg(self.template["received"]["quit"])
-
 
 if __name__ == '__main__':
     sms_sender = SmsSender()

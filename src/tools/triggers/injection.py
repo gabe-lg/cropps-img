@@ -1,6 +1,5 @@
 import csv
 import datetime
-import sys
 import time
 
 try:
@@ -10,25 +9,21 @@ except ModuleNotFoundError:
 
 # Configuration (adjust as needed)
 BAUD_RATE = 9600
-# amplitude = 40e-6  # Constant current in Amps (e.g., 20 µA)
-# duration = 30  # Total time in seconds
 SAMPLE_INTERVAL = 0.01  # Sampling interval in seconds
 VOLT_COMPLIANCE = 200  # Voltage compliance in V
-
-# Data storage
-data = []
 
 
 def main(port, duration: float = 30, amplitude: float = 40e-6):
     """
     Docstring for main
-    
+
     :param port: Description
     :param duration: Description
     :type duration: Total time in seconds
     :param amplitude: Constant current in Amps (e.g., 20 µA)
     :type amplitude: float
     """
+    data = []
     # Initialize serial connection
     try:
         keithley = serial.Serial(
@@ -113,9 +108,6 @@ def main(port, duration: float = 30, amplitude: float = 40e-6):
         except KeyboardInterrupt:
             print('\nMeasurement interrupted by user.')
 
-    except Exception as e:
-        print(f'Serial error: {e}')
-        sys.exit(1)
     except Exception as e:
         print(f'Error: {e}')
 
