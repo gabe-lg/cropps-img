@@ -6,6 +6,7 @@
 .env*
 .venv/
 .idea/
+.claude/
 
 # Output/media files
 saves

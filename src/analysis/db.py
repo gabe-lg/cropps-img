@@ -5,11 +5,15 @@ import psycopg2
 
 
 def insert_data(yellow_pixels, agitation, normalized_pixels, image_path):
+    password = os.getenv("DB_PASSWORD")
+    if not password:
+        print("[DB] DB_PASSWORD env var not set; skipping insert.")
+        return
     try:
         conn = psycopg2.connect(
             dbname=os.getenv("DB_NAME", "plantdata"),
             user=os.getenv("DB_USER", "cropps"),
-            password=os.getenv("DB_PASSWORD", "cropps123"),
+            password=password,
             host=os.getenv("DB_HOST", "postgres-db"),
             port=os.getenv("DB_PORT", "5432")
         )

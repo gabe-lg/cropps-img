@@ -1,4 +1,5 @@
 import csv
+import os
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -14,8 +15,9 @@ class LoggernetLive:
     def __init__(self, csv_filename, interval=0.01):
         self.INTERVAL = interval
         self.MAX_DATA = int(120 / self.INTERVAL)
-        self.USERNAME = "your_username"
-        self.PASSWORD = "your_password"
+        # Authentication credentials (set via LOGGERNET_USER / LOGGERNET_PASS env vars)
+        self.USERNAME = os.environ.get("LOGGERNET_USER", "your_username")
+        self.PASSWORD = os.environ.get("LOGGERNET_PASS", "your_password")
         self.URL = 'http://192.168.66.1/cr6'
         self.PARAMS = {
             'command': 'DataQuery',

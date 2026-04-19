@@ -70,7 +70,8 @@ class Loggernet:
             auth = HTTPBasicAuth(self.USERNAME, self.PASSWORD)
 
             try:
-                data = requests.get(url, params=params, auth=auth).json()
+                data = requests.get(url, params=params, auth=auth,
+                                    timeout=2).json()
                 if "data" not in data:
                     break
                 record = data["data"][0]
@@ -80,6 +81,8 @@ class Loggernet:
                 (t, d) = time_str, vals
             except Exception as e:
                 print("Error fetching data:", e)
+                # Backoff on failure so we don't spin at full CPU
+                time.sleep(max(self.INTERVAL, 1.0))
                 continue
 
             if not (t and d):

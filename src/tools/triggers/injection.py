@@ -1,5 +1,6 @@
 import csv
 import datetime
+import os
 import time
 
 try:
@@ -13,15 +14,14 @@ SAMPLE_INTERVAL = 0.01  # Sampling interval in seconds
 VOLT_COMPLIANCE = 200  # Voltage compliance in V
 
 
-def main(port, duration: float = 30, amplitude: float = 40e-6):
+def main(port, duration: float = 30, amplitude: float = 40e-6,
+         output_dir: str = None):
     """
-    Docstring for main
-
-    :param port: Description
-    :param duration: Description
-    :type duration: Total time in seconds
-    :param amplitude: Constant current in Amps (e.g., 20 µA)
-    :type amplitude: float
+    :param port: serial port (e.g., "COM4")
+    :param duration: total measurement time in seconds
+    :param amplitude: constant current in Amps (e.g., 40e-6 = 40 µA)
+    :param output_dir: directory to write keithley_data_*.csv into.
+                       Defaults to current working directory.
     """
     data = []
     # Initialize serial connection
@@ -122,7 +122,8 @@ def main(port, duration: float = 30, amplitude: float = 40e-6):
     # Save data to CSV if any collected
     if data:
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'keithley_data_{timestamp}.csv'
+        base_name = f'keithley_data_{timestamp}.csv'
+        filename = os.path.join(output_dir, base_name) if output_dir else base_name
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Time(s)', 'Voltage(V)', 'Current(A)'])

@@ -1,6 +1,13 @@
 import os
 import sys
 
+# Line-buffer stdout so prints reach the terminal immediately (important
+# because quit() calls os._exit(0) which skips normal stdout flushing).
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except AttributeError:
+    pass  # older Python
+
 if '-h' in sys.argv or '--help' in sys.argv:
     with open("help.txt", 'r') as f:
         print(f.read())

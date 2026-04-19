@@ -11,13 +11,28 @@ from src.tools.triggers import *
 
 
 class Trigger:
-    def __init__(self, pre_trigger_func):
+    def __init__(self, pre_trigger_func, get_output_dir=None):
+        """
+        :param pre_trigger_func: called before firing the hardware trigger
+                                 (usually starts recording)
+        :param get_output_dir:   optional callable returning the current
+                                 recording folder, used by injection to
+                                 write its CSV alongside the images.
+        """
         self.pre_trigger_func = pre_trigger_func
+        self.get_output_dir = get_output_dir
         self.analysis_duration = 120  # seconds
 
         # Default values, change if needed (or change manually in the app)
         self.current_injection_port_com = 4
         self.burn_port_com = 6
+
+        # Hardware trigger parameters (set here so types are stable; the
+        # settings dialog overwrites them as strings, but call-sites convert
+        # via float(...) so both string and numeric values work).
+        self.injection_duration = 30.0     # seconds
+        self.injection_amplitude = 40.0    # microamps (converted to A at call)
+        self.burn_duration = 2.5           # seconds (unused by current firmware)
 
     def pre_trigger(self):
         try:
@@ -28,19 +43,11 @@ class Trigger:
     def execute_trigger(self, new_msg):
         match new_msg:
             case "current injection" | '1':
-                if not hasattr(self, "injection_duration"):
-                    self.injection_duration = 30
-                if not hasattr(self, "injection_amplitude"):
-                    self.injection_amplitude = 40
-
                 self.injection("COM" + str(self.current_injection_port_com),
                                float(self.injection_duration),
                                float(self.injection_amplitude) / 1e6)
 
             case "burn" | '2':
-                if not hasattr(self, "burn_duration"):
-                    self.burn_duration = 2.5
-
                 self.burn("COM" + str(self.burn_port_com),
                           float(self.burn_duration))
             # TODO: more cases here
@@ -130,8 +137,16 @@ class Trigger:
 
     def injection(self, port, *args):
         self.pre_trigger()
+        kwargs = {}
+        if self.get_output_dir:
+            try:
+                out = self.get_output_dir()
+                if out:
+                    kwargs["output_dir"] = str(out)
+            except Exception as e:
+                print(f"[trigger] could not resolve output_dir: {e}")
         threading.Thread(target=injection.main, args=(port, *args),
-                         daemon=True).start()
+                         kwargs=kwargs, daemon=True).start()
 
     def burn(self, port, *args):
         self.pre_trigger()

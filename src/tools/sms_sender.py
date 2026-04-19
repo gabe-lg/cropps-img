@@ -31,7 +31,7 @@ class SmsSender:
         # The path where adb was installed
         self.dir = str(_ROOT_PATH / "platform-tools")
         self.adb = os.path.join(self.dir, "adb")
-        self.name = None
+        self.name = ""   # empty string so message.replace("$NAME", self.name) is safe
         self.phone = None
         self.phone_for_debug = ""  # change
 

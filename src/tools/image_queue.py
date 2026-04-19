@@ -13,18 +13,19 @@ import numpy as np
 from PIL import Image
 
 
-def _make_preview(img: Image.Image) -> Image.Image:
-    """Return an 8-bit auto-contrasted PNG-ready copy of a 16-bit PIL Image.
+def _make_preview(img: Image.Image, bit_depth: int) -> Image.Image:
+    """Return an 8-bit PNG-ready copy of a 16-bit PIL Image.
 
-    Uses 1st/99th percentile stretch so dim images become visible without
-    clipping outliers. Fast (~30ms for 1440x1080) and runs in the save thread,
-    off the camera acquisition path.
+    Uses LINEAR bit-depth conversion (no contrast stretching, no
+    per-frame rescaling). For a 10-bit sensor: pixel_8bit = pixel_10bit >> 2
+    (i.e. divide by 4). This is mathematically identical to the GUI display
+    path, so the PNG and the live view show exactly the same values.
+    Saturated pixels look saturated; dim scenes look dim. No tricks.
     """
     arr = np.asarray(img, dtype=np.uint16)
-    p1, p99 = np.percentile(arr, (1, 99))
-    span = max(1.0, p99 - p1)
-    scaled = np.clip((arr.astype(np.float32) - p1) * 255.0 / span, 0, 255)
-    return Image.fromarray(scaled.astype(np.uint8))
+    shift = max(0, bit_depth - 8)  # 2 for 10-bit, 0 for 8-bit, 4 for 12-bit
+    scaled = np.clip(arr >> shift, 0, 255).astype(np.uint8)
+    return Image.fromarray(scaled)
 
 from dlls.thorlabs_tsi_sdk.tl_camera import Frame
 from dlls.thorlabs_tsi_sdk.tl_camera_enums import SENSOR_TYPE
@@ -113,8 +114,8 @@ class ImageAcquisitionThread(threading.Thread):
 
         with self._queue_lock:
             if self._image_dir or force_save:
-                dir = self._image_dir
-                preview_dir = Path(dir) / "preview"
+                recording_dir = Path(self._image_dir)
+                preview_dir = recording_dir / "preview"
                 preview_dir.mkdir(exist_ok=True)
 
                 while not q.empty():
@@ -123,16 +124,17 @@ class ImageAcquisitionThread(threading.Thread):
                     if self._image_count % self.save_freq == 0:
                         stamp = time.strftime("%Y%m%d_%H%M%S")
                         name = f"{self._image_count}-{stamp}"
-                        img.save(f"{dir}\\{name}.tiff")
-                        # Auto-contrasted preview (8-bit PNG) for quick inspection
+                        img.save(str(recording_dir / f"{name}.tiff"))
+                        # Linear 8-bit preview (same scale as the GUI)
                         try:
-                            _make_preview(img).save(str(preview_dir / f"{name}.png"))
+                            _make_preview(img, self._bit_depth).save(
+                                str(preview_dir / f"{name}.png"))
                         except Exception as e:
                             print(f"[preview] failed for {name}: {e}")
 
                     self._image_count += 1
                 print(
-                    f"Saved {self._image_count // self.save_freq} images in total to {dir}")
+                    f"Saved {self._image_count // self.save_freq} images in total to {recording_dir}")
 
                 if force_save: self.image_dir = None
 

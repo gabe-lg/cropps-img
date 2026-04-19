@@ -101,13 +101,22 @@ class CameraApp(tk.Tk):
         except IndexError:
             self.after(DISPLAY_INTERVAL_MS, self.update_camera_feed)
             return
-        self.imgtk = ImageTk.PhotoImage(image=pil_image)
 
-        # Resize to fit canvas
+        # Resize to fit canvas (preserves aspect ratio)
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
+        orig_w, orig_h = pil_image.width, pil_image.height
         pil_image.thumbnail(
             (canvas_width, canvas_height), Image.Resampling.LANCZOS)
+
+        # Print once per second so we can confirm no cropping is happening
+        if not hasattr(self, "_dbg_last_print") or time.time() - self._dbg_last_print > 1.0:
+            print(f"[DISPLAY] orig={orig_w}x{orig_h}  canvas={canvas_width}x{canvas_height}  drawn={pil_image.width}x{pil_image.height}")
+            self._dbg_last_print = time.time()
+
+        # Build the PhotoImage AFTER thumbnailing so the canvas shows the
+        # resized image (otherwise the full-res image gets cropped to canvas).
+        self.imgtk = ImageTk.PhotoImage(image=pil_image)
 
         self.canvas.delete("all")
 
@@ -162,10 +171,13 @@ class CameraApp(tk.Tk):
         return path
 
     def start_analysis(self):
-        self.screenshot_directory = self.start_stop_recording()
+        # If recording is already running (e.g., user pressed Start Recording
+        # manually before triggering analysis), stop the current recording
+        # so we start a fresh folder for this analysis session.
+        if self.camera.recording:
+            self.start_stop_recording()
 
-        if not self.screenshot_directory:  # Stopped recording
-            self.screenshot_directory = self.start_stop_recording()
+        self.screenshot_directory = self.start_stop_recording()
 
         self.capture_task = start_analysis(
             self.camera, self.screenshot_directory,
@@ -409,8 +421,9 @@ class CameraApp(tk.Tk):
         height = self.winfo_screenheight() // 2
 
         # Keyboard bindings
-        self.bind('i', lambda _: [self.show_settings_dialog(), self._show_trigger_settings()])
-        
+        self.bind('i', lambda _: self.show_settings_dialog())
+        self.bind('m', lambda _: self.sms_info())  # 'm' for Messaging — opens SMS contact dialog
+
         def stop(_):
             if self.capture_task: self.stop_analysis()
 
@@ -428,8 +441,9 @@ class CameraApp(tk.Tk):
 
         self.bind("<space>", display_all)
 
-        if not self.show_buttons:
-            self.bind("<Button-1>", lambda _: self.sms_info())
+        # Note: SMS-info click-to-open is bound to the logo label below
+        # (in _setup_canvases, after the logo is created) instead of the
+        # whole window, so clicks on the camera/chatbox don't trigger it.
 
         # --- Left side: Camera feed ---
         camera_frame = tk.Frame(main_frame, width=width, height=height)
@@ -467,6 +481,9 @@ class CameraApp(tk.Tk):
         finally:
             logo_label.pack(side="left", anchor="nw", padx=50, pady=20)
             # logo_label.pack(side="top", anchor="n", pady=(10, 5))
+            # Click on the logo to re-open the SMS contact dialog
+            if not self.show_buttons:
+                logo_label.bind("<Button-1>", lambda _: self.sms_info())
 
         tk.Label(
             header_frame,
@@ -597,7 +614,9 @@ class CameraApp(tk.Tk):
 
         self.histogram = Histogram()
         self.sms_sender = SmsSender()
-        self.trigger = Trigger(pre_trigger_func=self.start_analysis)
+        self.trigger = Trigger(
+            pre_trigger_func=self.start_analysis,
+            get_output_dir=lambda: getattr(self, "screenshot_directory", None))
 
         if self.show_graph:
             self.loggernet = Loggernet()

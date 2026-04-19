@@ -42,6 +42,36 @@ class Camera:
 
         print("[CAMERA] Camera detected")
         print(f"[CAMERA] Sensor bit depth: {self.camera.bit_depth}-bit")
+        try:
+            sw, sh = self.camera.sensor_width_pixels, self.camera.sensor_height_pixels
+            print(f"[CAMERA] Full sensor size: {sw} x {sh} px")
+        except Exception as e:
+            print(f"[CAMERA] Could not read sensor size: {e}")
+        try:
+            iw, ih = self.camera.image_width_pixels, self.camera.image_height_pixels
+            print(f"[CAMERA] Current image size: {iw} x {ih} px")
+        except Exception as e:
+            print(f"[CAMERA] Could not read image size: {e}")
+        try:
+            roi = self.camera.roi
+            print(f"[CAMERA] Region of interest (ROI): {roi}")
+        except Exception as e:
+            print(f"[CAMERA] Could not read ROI: {e}")
+        try:
+            bins = (self.camera.binx, self.camera.biny)
+            print(f"[CAMERA] Binning (binx, biny): {bins}")
+        except Exception as e:
+            print(f"[CAMERA] Could not read binning: {e}")
+        try:
+            emin, emax = self.camera.exposure_time_range_us
+            print(f"[CAMERA] Exposure range: {emin / 1000:.3f} ms .. {emax / 1000:.1f} ms")
+        except Exception as e:
+            print(f"[CAMERA] Could not read exposure range: {e}")
+        try:
+            gmin, gmax = self.camera.gain_range
+            print(f"[CAMERA] Gain range: {gmin} .. {gmax}")
+        except Exception as e:
+            print(f"[CAMERA] Could not read gain range: {e}")
 
         self.image_acquisition_thread = ImageAcquisitionThread(self.camera,
                                                                SAVE_FREQ)
@@ -77,26 +107,27 @@ class Camera:
 
     def latest_image(self):
         """
-        Get the latest image from the camera, scaled for 8-bit display.
-        The queued image is a 16-bit PIL Image carrying raw sensor data
-        (e.g. 10-bit values 0-1023). We scale up to fill 16-bit range, then
-        PIL's standard I;16 -> L conversion yields a correctly-contrasted
-        8-bit image for Tkinter. Saved TIFFs remain untouched.
+        Get the latest image from the camera, converted to 8-bit for display.
+
+        Uses the same LINEAR bit-depth conversion as _make_preview in
+        image_queue.py — for a 10-bit sensor, pixel_8bit = pixel_10bit >> 2.
+        No stretching, no percentile tricks. Live feed and saved preview
+        PNGs are pixel-identical. Saved TIFFs keep full 10-bit data.
         """
-        try:
-            self.pil_image = \
-                self.image_acquisition_thread.get_output_queue().queue[-1]
-        except IndexError:
-            # queue is empty
-            pass
+        q = self.image_acquisition_thread.get_output_queue()
+        # Acquire Queue's internal mutex to safely peek at the latest item
+        # without racing against the producer thread's put_nowait.
+        with q.mutex:
+            if q.queue:
+                self.pil_image = q.queue[-1]
 
         if not self.pil_image:
             raise IndexError("No latest image")
 
         arr = np.asarray(self.pil_image, dtype=np.uint16)
-        shift = max(0, 16 - self.camera.bit_depth)
-        scaled = np.clip(arr.astype(np.uint32) << shift, 0, 65535).astype(np.uint16)
-        return Image.fromarray(scaled, mode="I;16").convert("L")
+        shift = max(0, self.camera.bit_depth - 8)  # 2 for 10-bit, 4 for 12-bit
+        scaled = np.clip(arr >> shift, 0, 255).astype(np.uint8)
+        return Image.fromarray(scaled)
 
     def show_settings_dialog(self, dialog, winfo_x, winfo_y, winfo_width,
                              winfo_height):
@@ -117,7 +148,7 @@ class Camera:
                     f"Exposure set to {round(self.camera.exposure_time_us / 1000, 2)}ms"
                 )
             except Exception as e:
-                tkinter.messagebox.showerror("Exposure", e)
+                tkinter.messagebox.showerror("Exposure", str(e))
             finally:
                 dialog.destroy()
 
@@ -133,7 +164,7 @@ class Camera:
                     )
                 )
             except Exception as e:
-                tkinter.messagebox.showerror("Gain", e)
+                tkinter.messagebox.showerror("Gain", str(e))
             finally:
                 dialog.destroy()
 
@@ -144,9 +175,16 @@ class Camera:
         content_frame = tk.Frame(dialog)
         content_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
+        try:
+            emin_ms = self.camera.exposure_time_range_us[0] / 1000
+            emax_ms = self.camera.exposure_time_range_us[1] / 1000
+            exp_range_txt = f"  (allowed: {emin_ms:.3f} – {emax_ms:.0f} ms)"
+        except Exception:
+            exp_range_txt = ""
+
         current_label = tk.Label(
             content_frame,
-            text=f"Current exposure: {self.camera.exposure_time_us / 1000}ms"
+            text=f"Current exposure: {self.camera.exposure_time_us / 1000}ms{exp_range_txt}"
         )
         current_label.pack(pady=(0, 10))
 
@@ -171,9 +209,15 @@ class Camera:
 
         #-----------------------
 
+        try:
+            gmin, gmax = self.camera.gain_range
+            gain_range_txt = f"  (allowed: {gmin} – {gmax})"
+        except Exception:
+            gain_range_txt = ""
+
         current_label = tk.Label(
             content_frame,
-            text=f"Current gain: {self.camera.gain}"
+            text=f"Current gain: {self.camera.gain}{gain_range_txt}"
         )
         current_label.pack(pady=(0, 10))
 
