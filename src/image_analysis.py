@@ -1,7 +1,9 @@
 import os
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+# Use Figure directly (not pyplot) so plotting is safe from worker threads.
+# pyplot pulls in the Tk backend which can only be touched from the main thread.
+from matplotlib.figure import Figure
 
 # Image dimensions
 IMAGE_WIDTH = 1280
@@ -22,28 +24,28 @@ CREATE_FIGURE = True
 def plot_pixel_counts_vs_prev(pixel_counts_prev, screenshot_directory):
     """Plot pixel counts (intensity 40-170 after previous frame subtraction) vs. frame number and save."""
     frame_numbers = [i for i in range(2, len(pixel_counts_prev) + 2)]
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(frame_numbers, pixel_counts_prev, marker='o', linestyle='-', color='b')
-    plt.xlabel('Frame Number')
-    plt.ylabel('Pixel Count (Intensity 40-170)')
-    plt.title('Pixel Count (40-170) vs. Frame Number - Previous Frame')
-    plt.grid(True)
-    plt.savefig(os.path.join(screenshot_directory, 'pixel_count_40_170_vs_prev_plot.png'))
-    plt.close()
+
+    fig = Figure(figsize=(10, 6))
+    ax = fig.subplots()
+    ax.plot(frame_numbers, pixel_counts_prev, marker='o', linestyle='-', color='b')
+    ax.set_xlabel('Frame Number')
+    ax.set_ylabel('Pixel Count (Intensity 40-170)')
+    ax.set_title('Pixel Count (40-170) vs. Frame Number - Previous Frame')
+    ax.grid(True)
+    fig.savefig(os.path.join(screenshot_directory, 'pixel_count_40_170_vs_prev_plot.png'))
 
 def plot_pixel_counts_vs_background(pixel_counts_bg, screenshot_directory):
     """Plot pixel counts (intensity 40-170 after background frame subtraction) vs. frame number and save."""
     frame_numbers = [i for i in range(2, len(pixel_counts_bg) + 2)]
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(frame_numbers, pixel_counts_bg, marker='o', linestyle='-', color='r')
-    plt.xlabel('Frame Number')
-    plt.ylabel('Pixel Count (Intensity 40-170)')
-    plt.title('Pixel Count (40-170) vs. Frame Number - Background Frame')
-    plt.grid(True)
-    plt.savefig(os.path.join(screenshot_directory, 'pixel_count_40_170_vs_bg_plot.png'))
-    plt.close()
+
+    fig = Figure(figsize=(10, 6))
+    ax = fig.subplots()
+    ax.plot(frame_numbers, pixel_counts_bg, marker='o', linestyle='-', color='r')
+    ax.set_xlabel('Frame Number')
+    ax.set_ylabel('Pixel Count (Intensity 40-170)')
+    ax.set_title('Pixel Count (40-170) vs. Frame Number - Background Frame')
+    ax.grid(True)
+    fig.savefig(os.path.join(screenshot_directory, 'pixel_count_40_170_vs_bg_plot.png'))
 
 def detect_conditions(pixel_counts_prev):
     """Detect conditions based on pixel counts (40-170, frame vs. previous) in the first 30 frames."""

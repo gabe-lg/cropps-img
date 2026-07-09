@@ -7,6 +7,13 @@ import subprocess
 import threading
 import time
 
+from src.apppath import base_dir
+
+# When frozen into a windowed .exe there is no console, so each adb call would
+# otherwise pop up a visible black console window. CREATE_NO_WINDOW hides them.
+# read_msg() polls adb every 2s, so without this a console flashes constantly.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 def fix_encoding(data):
     """
@@ -19,9 +26,8 @@ def fix_encoding(data):
 
 class SmsSender:
     def __init__(self):
-        # The path where adb was installed
-        self.dir = ("C:\\Users\\CROPPS-in-Box\\Documents\\cropps main "
-                    "folder\\platform-tools-latest-windows\\platform-tools")
+        # The path where adb was installed (bundled at <base_dir>/platform-tools)
+        self.dir = str(base_dir() / "platform-tools")
         self.name = None
         self.phone = None
         self.phone_for_debug = ""  # change
@@ -47,13 +53,13 @@ class SmsSender:
             subprocess.run([
                 "./adb", "shell", "settings", "put", "global",
                 "sms_outgoing_check_max_count", "99999"
-            ], check=True)
+            ], check=True, creationflags=_NO_WINDOW)
 
             # Increase the SMS sending interval window (in milliseconds)
             subprocess.run([
                 "./adb", "shell", "settings", "put", "global",
                 "sms_outgoing_check_interval_ms", "9000000"
-            ], check=True)
+            ], check=True, creationflags=_NO_WINDOW)
 
             print("SMS sending limit increased.")
         except subprocess.CalledProcessError as e:
@@ -103,7 +109,7 @@ class SmsSender:
         # Execute the command
         try:
             os.chdir(self.dir)
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, creationflags=_NO_WINDOW)
             self.msg_changed_event.set()
             print("[send_msg]: A message has been sent.")
         except subprocess.CalledProcessError as e:
@@ -132,7 +138,8 @@ class SmsSender:
             try:
                 os.chdir(self.dir)
                 output = subprocess.run(cmd, check=True, capture_output=True,
-                                        text=True).stdout
+                                        text=True,
+                                        creationflags=_NO_WINDOW).stdout
                 orig = [r.partition("body=")[2].strip() for r in
                         self.sms_msgs.splitlines() if "body=" in r]
                 new = [r.partition("body=")[2].strip() for r in
@@ -177,7 +184,8 @@ class SmsSender:
                 '--where', f"date\\>={self.init_ms}"
             ]
             inbox_output = subprocess.run(inbox_cmd, check=True,
-                                          capture_output=True).stdout.decode(
+                                          capture_output=True,
+                                          creationflags=_NO_WINDOW).stdout.decode(
                 "utf-8", errors="ignore")
 
             # Read sent messages
@@ -188,7 +196,8 @@ class SmsSender:
                 '--where', f"date\\>={self.init_ms}"
             ]
             sent_output = subprocess.run(sent_cmd, check=True,
-                                         capture_output=True).stdout.decode(
+                                         capture_output=True,
+                                         creationflags=_NO_WINDOW).stdout.decode(
                 "utf-8", errors="ignore")
 
         finally:

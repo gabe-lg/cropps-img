@@ -27,12 +27,12 @@ from src.remote_image_analysis import remote_image_analysis
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from src.capture_task import CaptureTask
 from src.camera import Camera
+from src.apppath import base_dir
 
 # Paths
-WATERMARK_PATH = Path(
-    __file__).parent.parent / "assets" / "cropps_watermark_dark.png"
+WATERMARK_PATH = base_dir() / "assets" / "cropps_watermark_dark.png"
 ICO_PATH = "./assets/CROPPS_vertical_logo.png"
-BG_PATH = Path(__file__).parent.parent / "assets" / "cropps_background.png"
+BG_PATH = base_dir() / "assets" / "cropps_background.png"
 
 # Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 900
@@ -54,6 +54,9 @@ class CameraApp(tk.Tk):
         self.title("CROPPS Camera Control")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.state("zoomed")
+        # Route the window-close (X) button through our cleanup so the camera
+        # is released; otherwise Tk just destroys the window and leaks it.
+        self.protocol("WM_DELETE_WINDOW", self.quit)
         self.icon = tk.PhotoImage(file=ICO_PATH)
         self.iconphoto(False, self.icon)
         self.threads = []
@@ -90,8 +93,23 @@ class CameraApp(tk.Tk):
         # Initialize loading animation
         self.angle = 60
         self._animate_loading()
+        # Defaults. Auto-detection runs in a background thread (below) and
+        # overrides these once it finishes; keeping defaults here means the
+        # app + camera start instantly and SMS triggers work even if the
+        # detector is slow or never returns.
         self.current_injection_port = "COM3"
         self.burn_port = "COM4"
+
+        def _detect_ports_async():
+            try:
+                from src.port_detector import detect_ports
+                inj, burn = detect_ports(
+                    default_injection="COM3", default_burn="COM4")
+                self.current_injection_port = inj
+                self.burn_port = burn
+            except Exception as e:
+                print(f"[port_detector] detection failed: {e}")
+        threading.Thread(target=_detect_ports_async, daemon=True).start()
 
         # Toggle graphs and webcam feed
         # TODO: add button that toggles whether data is displayed in camera feed
@@ -113,13 +131,33 @@ class CameraApp(tk.Tk):
 
     def quit(self):
         print("Exiting...")
-        # self.stop_analysis()
+
+        # Stop the periodic camera-feed callback if it was scheduled.
+        upd = getattr(self, "update_pid", None)
+        if upd is not None:
+            try:
+                self.after_cancel(upd)
+            except Exception:
+                pass
+
+        # Explicitly release the microscope BEFORE exiting so the next launch
+        # can acquire it. Skipping this leaves the camera occupied by a zombie.
+        cam = getattr(self, "camera", None)
+        if cam is not None:
+            try:
+                cam.close()
+            except Exception:
+                pass
         self.camera = None
 
-        self.after_cancel(self.update_pid)
-        self.destroy()
+        try:
+            self.destroy()
+        except Exception:
+            pass
 
-        os.kill(os.getpid(), 2)
+        # os.kill(SIGINT) is unreliable on a windowed Windows exe and can leave
+        # the process (and camera handle) lingering. os._exit terminates now.
+        os._exit(0)
 
     ## main update function ##
     def update_camera_feed(self):
@@ -225,7 +263,7 @@ class CameraApp(tk.Tk):
                                         "No video is currently recording.")
 
     def start_analysis(self, prefix=None):
-        project_root = Path(__file__).resolve().parent.parent
+        project_root = base_dir()
         assets_dir = project_root / "assets" / "captured_data"
 
         self.screenshot_directory = (
@@ -287,7 +325,9 @@ class CameraApp(tk.Tk):
                         "Analysis Result", f"Detection result: {result}"))
 
             except Exception as e:
-                self.after(0, lambda: tkinter.messagebox.showerror(
+                # bind e=e: Python deletes `e` when the except block exits,
+                # so the lambda has to capture it as a default argument
+                self.after(0, lambda e=e: tkinter.messagebox.showerror(
                     "Analysis Error", f"Failed to analyze images: {e}"))
             finally:
                 self.after(0, waiting_win.destroy)
@@ -494,8 +534,7 @@ class CameraApp(tk.Tk):
 
     def save_graph(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        file_name = Path(
-            __file__).parent.parent / "saves" / f"graph_{timestamp}.png"
+        file_name = base_dir() / "saves" / f"graph_{timestamp}.png"
         file_name.parent.mkdir(parents=True, exist_ok=True)
         self.histogram.fig.savefig(file_name)
 
@@ -653,6 +692,7 @@ class CameraApp(tk.Tk):
                 case "quit" | 'q':
                     self.sms_sender.send_msg(
                         self.sms_sender.template["received"]["quit"])
+                    time.sleep(1)  # let ADB deliver the SMS before we exit
                     self.quit()
                 case _:
                     self.sms_sender.send_msg(
@@ -702,7 +742,8 @@ class CameraApp(tk.Tk):
             try:
                 if self.sms_sender.new_msg_event.is_set():
                     self.sms_sender.new_msg_event.clear()
-                    self._execute_trigger()
+                    # marshal onto Tk main thread; messagebox isn't thread-safe
+                    self.after(0, self._execute_trigger)
 
                 if self.sms_sender and self.sms_sender.phone:
                     msgs = self.sms_sender.get_msg_history(
@@ -747,93 +788,77 @@ class CameraApp(tk.Tk):
         self.chatbox.yview("end")
 
     def _setup_canvases(self):
-        # --- Main frame to hold camera (left) + logger (right) ---
+        # ---- Top-level title bar (full window width) ----
+        # 3-column grid keeps the title visually centered regardless of
+        # logo width. Right spacer matches logo so center isn't pulled left.
+        title_bar = tk.Frame(self)
+        title_bar.pack(side="top", fill="x", pady=(15, 5))
+        title_bar.columnconfigure(0, weight=0)
+        title_bar.columnconfigure(1, weight=1)
+        title_bar.columnconfigure(2, weight=0)
+
+        try:
+            self.logo_photo = ImageTk.PhotoImage(self.watermark)
+            logo_label = tk.Label(title_bar, image=self.logo_photo)
+        except Exception as e:
+            print(f"Error loading logo: {e}")
+            logo_label = tk.Label(title_bar, text="CROPPS",
+                                  font=("Arial", 24, "bold"), fg="#333")
+        logo_label.grid(row=0, column=0, sticky="w", padx=30)
+
+        tk.Label(title_bar, text="Hi, I’m Ari!",
+                 font=("Trebuchet MS", 48, "bold"),
+                 fg="#000000").grid(row=0, column=1, sticky="")
+
+        # Right spacer matched to logo width so col 1 is the geometric center
+        logo_label.update_idletasks()
+        spacer_w = logo_label.winfo_reqwidth() + 60
+        tk.Frame(title_bar, width=spacer_w, height=1).grid(
+            row=0, column=2, sticky="e", padx=30)
+
+        # ---- Main content area (camera left, phone right) ----
         main_frame = tk.Frame(self)
         main_frame.pack(side="top", fill="both", expand=True)
-
-        width = self.winfo_screenwidth() // 2
-        height = self.winfo_screenheight() // 2
+        # 60/40 weighted split — camera gets more room so its image fills it,
+        # which closes the visual gap between camera and phone.
+        main_frame.columnconfigure(0, weight=3, uniform="content")
+        main_frame.columnconfigure(1, weight=2, uniform="content")
+        main_frame.rowconfigure(0, weight=1)
 
         # Keyboard bindings
         def stop(_):
             if self.capture_task: self.stop_analysis()
-
         self.bind('s', stop)
-
         self.bind('q', lambda _: self.quit())
 
         def display_all(_):
             self.truncate_msgs = not self.truncate_msgs
             self._refresh_chatbox(self._last_msg_history)
-
         self.bind("<space>", display_all)
 
         if not self.show_buttons:
             self.bind("<Button-1>", lambda _: self.sms_info())
 
-        # --- Left side: Camera feed ---
-        camera_frame = tk.Frame(main_frame, width=width, height=height)
-        camera_frame.pack(side="left", fill="both", expand=True)
-        camera_frame.pack_propagate(False)
+        # ---- Left: Camera feed ----
+        camera_frame = tk.Frame(main_frame)
+        camera_frame.grid(row=0, column=0, sticky="nsew")
 
-        header_frame = tk.Frame(camera_frame)
-        header_frame.pack(side="top", fill="x")
+        self.canvas = tk.Canvas(camera_frame, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(camera_frame, width=width, height=height)
-        self.canvas.pack(side="top", fill="both", expand=True)
+        # ---- Right: phone screen + chatbox ----
+        right_frame = tk.Frame(main_frame)
+        right_frame.grid(row=0, column=1, sticky="nsew")
 
-        # --- Right side: Logo + webcam + histogram ---
-        right_frame = tk.Frame(main_frame, width=width, height=height)
-        right_frame.pack(side="left", fill="both", expand=True)
-        right_frame.pack_propagate(False)
-
-        # --- Top: Logo ---
-        # UPDATE v2.1.0: putting logo on the left
-        try:
-            logo_img = self.watermark
-            # logo_img = logo_img.resize((200, 100))
-            self.logo_photo = ImageTk.PhotoImage(logo_img)
-
-            logo_label = tk.Label(header_frame, image=self.logo_photo)
-            # logo_label = tk.Label(right_frame, image=self.logo_photo)
-
-        except Exception as e:
-            print(f"Error loading logo: {e}")
-            logo_label = tk.Label(
-                right_frame,
-                text="CROPPS",
-                font=("Arial", 24, "bold"),
-                fg="#333")
-        finally:
-            logo_label.pack(side="left", anchor="nw", padx=50, pady=20)
-            # logo_label.pack(side="top", anchor="n", pady=(10, 5))
-
-        tk.Label(
-            header_frame,
-            text="Hi, I’m Ari!",
-            font=("Trebuchet MS", 48, "bold"),
-            fg="#000000",
-            height=logo_label.winfo_height()).pack(side="right", anchor="sw",
-                                                   pady=20)
-
-        # --- Placeholder on the right ---
-        tk.Label(
-            right_frame,
-            text="",
-            font=("Arial", 24, "bold"),
-            fg="#333",
-            height=logo_label.winfo_height()
-        ).pack(side="top", anchor="nw", padx=50, pady=20)
-
-        # --- Middle: Webcam canvas ---
         if self.show_webcam:
             webcam_height = (
                 self.winfo_screenheight() / 2.5
                 if self.show_graph
-                else height - 120
+                else self.winfo_screenheight() // 2 - 120
             )
             self.webcam_canvas = tk.Canvas(
-                right_frame, width=width, height=webcam_height)
+                right_frame, width=self.winfo_screenwidth() // 2,
+                height=webcam_height)
             self.webcam_canvas.pack(side="top", fill="both", expand=True,
                                     pady=(5, 10))
 
@@ -844,54 +869,67 @@ class CameraApp(tk.Tk):
                                                       master=hist_frame)
             self.histogram_canvas.get_tk_widget().pack(fill="x", expand=True)
 
-        # --- Bottom: Histogram ---
-        # --- Chatbox ---
+        # ---- Chatbox / phone screen ----
         chat_frame = tk.Frame(right_frame, bg="white")
-        chat_frame.pack(side="top", fill="both", expand=True, padx=10,
-                        pady=(175, 0)) # add vspace above the phone screen
+        chat_frame.pack(side="top", fill="both", expand=True,
+                        padx=10, pady=10)
 
         if self.show_graph:
-            # Regular chat box
-            chat_label = tk.Label(chat_frame, text="Message History",
-                                  font=("Arial", 14, "bold"), bg="white")
-            chat_label.pack(anchor="n")
-
-            # ScrolledText for chat messages
-            # font size for chatbox (magic number)
+            # Plain chat box (used only when graphs replace the phone)
+            tk.Label(chat_frame, text="Message History",
+                     font=("Arial", 14, "bold"),
+                     bg="white").pack(anchor="n")
             self.chatbox = ScrolledText(chat_frame, wrap="word",
                                         state="disabled",
                                         font=("Segoe UI Emoji", 20))
             self.chatbox.pack(fill="both", expand=True, pady=(5, 0))
         else:
-            # Image of a screen
-            canvas = tk.Canvas(chat_frame)
-            canvas.pack(fill="both", expand=True)
+            # Phone-screen styled chat. Position lazily via <Configure>
+            # so the phone is centered (H + V) inside its own canvas at
+            # any window size — no more magic offsets.
+            phone_canvas = tk.Canvas(chat_frame, bg=self["bg"],
+                                     highlightthickness=0)
+            phone_canvas.pack(fill="both", expand=True)
+
             try:
-                # height of screen (magic number)
-                height = int(self.winfo_height() * .7)
-
-                img = Image.open("assets/screen.png")
-                img = img.resize((int(height * img.width / img.height), height))
-                imgtk = ImageTk.PhotoImage(img)
-                canvas.img = imgtk  # ugh garbage collection...
-                canvas.create_image(self.winfo_width() // 4, 0, anchor="n",
-                                    image=imgtk)
-
-                # ScrolledText for chat messages
+                img_pil = Image.open("assets/screen.png")
                 self.chatbox = ScrolledText(chat_frame, wrap="word",
                                             state="disabled",
                                             font=("Segoe UI Emoji", 20),
-                                            bg=self["bg"],
-                                            bd=0)
+                                            bg=self["bg"], bd=0)
 
-                # dimensions of chatbox (magic numbers)
-                chatbox_width = imgtk.width() * .4
-                chatbox_height = imgtk.height() * .7
+                def layout_phone(_event=None):
+                    cw = phone_canvas.winfo_width()
+                    ch = phone_canvas.winfo_height()
+                    if cw <= 1 or ch <= 1:
+                        return
+                    target_h = int(ch * 0.95)
+                    target_w = int(target_h * img_pil.width / img_pil.height)
+                    if target_w > cw - 20:
+                        target_w = max(1, cw - 20)
+                        target_h = int(target_w * img_pil.height / img_pil.width)
+                    resized = img_pil.resize((target_w, target_h),
+                                             Image.Resampling.LANCZOS)
+                    new_imgtk = ImageTk.PhotoImage(resized)
+                    phone_canvas.img = new_imgtk  # keep a ref
+                    cx, cy = cw // 2, ch // 2
+                    phone_canvas.delete("phone")
+                    phone_canvas.create_image(cx, cy, anchor="center",
+                                              image=new_imgtk, tags="phone")
+                    cb_w = int(target_w * 0.42)
+                    cb_h = int(target_h * 0.7)
+                    if phone_canvas.find_withtag("chatbox"):
+                        phone_canvas.coords("chatbox", cx, cy)
+                        phone_canvas.itemconfig("chatbox",
+                                                width=cb_w, height=cb_h)
+                    else:
+                        phone_canvas.create_window(cx, cy, anchor="center",
+                                                   window=self.chatbox,
+                                                   width=cb_w, height=cb_h,
+                                                   tags="chatbox")
 
-                canvas.create_window(self.winfo_width() // 4,
-                                     imgtk.height() // 2, anchor="center",
-                                     window=self.chatbox, width=chatbox_width,
-                                     height=chatbox_height)
+                phone_canvas.bind("<Configure>", layout_phone)
+                self.after(100, layout_phone)  # initial layout
             except Exception as e:
                 print(f"Error loading assets: {e}")
 

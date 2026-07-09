@@ -25,3 +25,12 @@ assets/data.csv
 
 yacctab.py
 lextab.py
+
+# PyInstaller build artifacts and logs
+build/
+dist/
+*.log
+*.spec.bak
+
+# Downloaded Android platform-tools (adb) — not part of the source
+platform-tools/

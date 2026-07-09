@@ -4,6 +4,8 @@ from pathlib import Path
 import cv2
 from instrumental import instrument, list_instruments
 
+from src.apppath import base_dir
+
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 1024
 
@@ -18,13 +20,25 @@ class Camera:
                                     gain=self.gain)
         self.recording = False
 
-    # destructor
-    def __del__(self):
+    def close(self):
+        """Explicitly release the microscope so the next run can acquire it.
+
+        Relying on __del__ is unreliable: background threads may still hold a
+        reference, so the camera handle can leak and stay occupied. Call this
+        directly on shutdown.
+        """
         try:
             self.camera.stop_live_video()
+        except Exception:
+            pass
+        try:
             self.camera.close()
         except Exception:
-            pass  # Ignore errors during interpreter shutdown
+            pass
+
+    # destructor
+    def __del__(self):
+        self.close()
 
     def get_frame(self):
         frame = self.camera.latest_frame(copy=True)
@@ -58,8 +72,7 @@ class Camera:
 
         self.recording = True
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        file_name = Path(
-            __file__).parent.parent / "saves" / f"video_{timestamp}.avi"
+        file_name = base_dir() / "saves" / f"video_{timestamp}.avi"
         file_name.parent.mkdir(parents=True, exist_ok=True)
 
         fourcc = cv2.VideoWriter.fourcc(*'XVID')

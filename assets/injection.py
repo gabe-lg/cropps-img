@@ -1,6 +1,5 @@
 import csv
 import datetime
-import sys
 import time
 
 try:
@@ -104,9 +103,6 @@ def main(port):
         except KeyboardInterrupt:
             print('\nMeasurement interrupted by user.')
 
-    except Exception as e:
-        print(f'Serial error: {e}')
-        sys.exit(1)
     except Exception as e:
         print(f'Error: {e}')
 
