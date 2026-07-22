@@ -8,7 +8,10 @@ if __name__ == "__main__" or __package__ is None:
         sys.path.insert(0, _project_root)
 
 import assets.burn
-import assets.injection
+# Current-injection path switched from the Keithley SMU to the KORAD KA6003P
+# supply. The legacy Keithley routine remains in assets/injection.py for
+# reference; the active path is assets/injection_korad.py.
+import assets.injection_korad
 
 class Trigger:
     def __init__(self, pre_trigger_func):
@@ -25,7 +28,7 @@ class Trigger:
     def injection(self, port):
         self.pre_trigger()
         # Run injection in a separate thread to avoid blocking CaptureTask
-        threading.Thread(target=assets.injection.main, args=(port,), daemon=True).start()
+        threading.Thread(target=assets.injection_korad.main, args=(port,), daemon=True).start()
 
     def burn(self, port):
         self.pre_trigger()

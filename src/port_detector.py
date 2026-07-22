@@ -1,7 +1,10 @@
 """
-Auto-detect which COM port the Keithley (current injection) and Arduino (burn)
-are on. Probes are designed to be fast and to fail-fast on busy/stuck ports
-so a misbehaving USB device can't hang the app.
+Auto-detect which COM port the KORAD KA6003P (current injection) and Arduino
+(burn) are on. Probes are designed to be fast and to fail-fast on busy/stuck
+ports so a misbehaving USB device can't hang the app.
+
+(The current-injection instrument was previously a Keithley SMU; the legacy
+Keithley probe is kept below but detect_ports() now looks for the KORAD supply.)
 
 Other USB devices (Thorlabs camera, ADB phone, audio, HID) don't appear as
 COM ports and are not touched.
@@ -97,6 +100,49 @@ def find_keithley_port():
     return None
 
 
+def _try_korad_probe(port_device):
+    """
+    Try to identify a KORAD KA6003P (or KAxxxxP) supply by sending *IDN?.
+    Uses exclusive=True so it fails fast if the port is already in use.
+    Returns True if the response contains 'KORAD'.
+    """
+    try:
+        with serial.Serial(port_device, 9600,
+                           timeout=_PROBE_TIMEOUT_S,
+                           write_timeout=_PROBE_TIMEOUT_S,
+                           exclusive=True) as s:
+            time.sleep(0.05)
+            s.reset_input_buffer()
+            s.write(b'*IDN?')  # KORAD uses no line terminator
+            resp = s.read(200).decode('utf-8', errors='ignore')
+            if 'KORAD' in resp.upper():
+                print(f"[port_detector] KORAD supply confirmed on {port_device}: "
+                      f"{resp.strip()}")
+                return True
+    except Exception as e:
+        print(f"[port_detector] {port_device} probe skipped: {e}")
+    return False
+
+
+def find_korad_port():
+    """
+    Return the COM port hosting the KORAD KA6003P supply, or None.
+
+    KORAD supplies ship behind a generic USB-serial bridge (usually a Silicon
+    Labs CP210x, VID 0x10C4) rather than an instrument-specific VID, so we probe
+    the RS232-bridge candidates with *IDN? and match 'KORAD'. Unknown-VID ports
+    are skipped so a random USB-CDC device can't hang detection.
+    """
+    if serial is None:
+        return None
+
+    for p in _list_com_ports():
+        if p.vid in _RS232_BRIDGE_VIDS:
+            if _try_korad_probe(p.device):
+                return p.device
+    return None
+
+
 def find_arduino_port(exclude=None):
     """
     Identify the Arduino by USB vendor ID. Returns the port name or None.
@@ -141,14 +187,14 @@ def detect_ports(default_injection: str, default_burn: str):
     print(f"[port_detector] Found {len(available)} COM port(s): "
           f"{[(p.device, p.description, f'VID=0x{p.vid:04X}' if p.vid else 'no VID') for p in available]}")
 
-    keithley = find_keithley_port()
-    arduino = find_arduino_port(exclude=keithley)
+    korad = find_korad_port()
+    arduino = find_arduino_port(exclude=korad)
 
-    injection = keithley or default_injection
+    injection = korad or default_injection
     burn = arduino or default_burn
 
-    if not keithley:
-        print(f"[port_detector] WARNING: Keithley not detected, "
+    if not korad:
+        print(f"[port_detector] WARNING: KORAD supply not detected, "
               f"falling back to {default_injection}")
     if not arduino:
         print(f"[port_detector] WARNING: Arduino not detected, "

@@ -27,9 +27,13 @@ for pkg in ("instrumental", "nicelib", "pint"):
 
 # assets/ is imported as a Python package (assets.burn / assets.injection) even
 # though it has no __init__.py — force these submodules in explicitly.
+# assets.injection_korad is the ACTIVE injection path (KORAD KA6003P); assets.injection
+# is the legacy Keithley path, kept for reference. Both are listed so the frozen
+# build can resolve them despite assets/ having no __init__.py.
 hiddenimports += [
     "assets.burn",
     "assets.injection",
+    "assets.injection_korad",
     "psycopg2",
     "serial",
     "serial.tools.list_ports",
